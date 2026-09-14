@@ -17,7 +17,7 @@ router.post('/', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Currency and amount are required' });
     }
 
-    const validCurrencies = ['USD', 'BTC', 'ETH'];
+    const validCurrencies = ['INR', 'USD', 'BTC', 'ETH'];
     if (!validCurrencies.includes(currency)) {
       return res.status(400).json({ error: `Invalid currency. Supported: ${validCurrencies.join(', ')}` });
     }
@@ -28,7 +28,7 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     // Max faucet limits per deposit
-    const limits: Record<string, number> = { USD: 100000, BTC: 10, ETH: 100 };
+    const limits: Record<string, number> = { INR: 10000000, USD: 100000, BTC: 10, ETH: 100 };
     if (depositAmount.gt(limits[currency])) {
       return res.status(400).json({ error: `Maximum deposit: ${limits[currency]} ${currency}` });
     }
@@ -36,7 +36,7 @@ router.post('/', async (req: Request, res: Response) => {
     await RiskService.depositFaucet(userId, currency, depositAmount);
 
     return res.json({
-      message: `Deposited ${depositAmount.toFixed(currency === 'USD' ? 2 : 8)} ${currency}`,
+      message: `Deposited ${depositAmount.toFixed(currency === 'INR' || currency === 'USD' ? 2 : 8)} ${currency}`,
       currency,
       amount: depositAmount.toString(),
     });

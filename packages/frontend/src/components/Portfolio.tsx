@@ -18,8 +18,8 @@ export default function Portfolio() {
   const [depositing, setDepositing] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  const btcPrice = Number(lastPrice || midPrice || 64000);
-  const ethPrice = 3400; // Reference price for ETH valuation
+  const btcPrice = Number(lastPrice || midPrice || 5000000);
+  const ethPrice = 280000; // Reference price in INR
 
   const refreshBalances = async () => {
     setRefreshing(true);
@@ -45,13 +45,14 @@ export default function Portfolio() {
     }
   };
 
-  // Calculate estimated total USD value
-  let totalEstUSD = 0;
+  // Calculate estimated total INR value
+  let totalEstINR = 0;
   accounts.forEach((acc) => {
     const total = Number(acc.total_balance || 0);
-    if (acc.currency === 'USD') totalEstUSD += total;
-    else if (acc.currency === 'BTC') totalEstUSD += total * btcPrice;
-    else if (acc.currency === 'ETH') totalEstUSD += total * ethPrice;
+    if (acc.currency === 'INR') totalEstINR += total;
+    else if (acc.currency === 'USD') totalEstINR += total * 85;
+    else if (acc.currency === 'BTC') totalEstINR += total * btcPrice;
+    else if (acc.currency === 'ETH') totalEstINR += total * ethPrice;
   });
 
   return (
@@ -64,7 +65,7 @@ export default function Portfolio() {
             Total Account Value:
           </span>
           <span className="text-[#D1D4DC] font-bold text-sm">
-            ${formatPrice(totalEstUSD)}
+            ₹{formatPrice(totalEstINR)}
           </span>
         </div>
         <button
@@ -86,7 +87,7 @@ export default function Portfolio() {
               <th className="py-2 px-3 text-right">Available</th>
               <th className="py-2 px-3 text-right">In Orders (Locked)</th>
               <th className="py-2 px-3 text-right">Total Balance</th>
-              <th className="py-2 px-3 text-right">Est. USD Value</th>
+              <th className="py-2 px-3 text-right">Est. Value (₹)</th>
               <th className="py-2 px-3 text-center">Faucet Deposit</th>
             </tr>
           </thead>
@@ -100,8 +101,10 @@ export default function Portfolio() {
             ) : (
               accounts.map((acc) => {
                 const total = Number(acc.total_balance || 0);
-                const estValue = acc.currency === 'USD'
+                const estValue = acc.currency === 'INR'
                   ? total
+                  : acc.currency === 'USD'
+                  ? total * 85
                   : acc.currency === 'BTC'
                   ? total * btcPrice
                   : total * ethPrice;
@@ -112,25 +115,25 @@ export default function Portfolio() {
                       {acc.currency}
                     </td>
                     <td className="py-2 px-3 text-right text-[#089981]">
-                      {acc.currency === 'USD' ? `$${formatPrice(acc.available_balance)}` : formatQuantity(acc.available_balance)}
+                      {acc.currency === 'INR' ? `₹${formatPrice(acc.available_balance)}` : acc.currency === 'USD' ? `$${formatPrice(acc.available_balance)}` : formatQuantity(acc.available_balance)}
                     </td>
                     <td className="py-2 px-3 text-right text-[#F23645]">
-                      {acc.currency === 'USD' ? `$${formatPrice(acc.locked_balance)}` : formatQuantity(acc.locked_balance)}
+                      {acc.currency === 'INR' ? `₹${formatPrice(acc.locked_balance)}` : acc.currency === 'USD' ? `$${formatPrice(acc.locked_balance)}` : formatQuantity(acc.locked_balance)}
                     </td>
                     <td className="py-2 px-3 text-right text-[#D1D4DC] font-medium">
-                      {acc.currency === 'USD' ? `$${formatPrice(acc.total_balance)}` : formatQuantity(acc.total_balance)}
+                      {acc.currency === 'INR' ? `₹${formatPrice(acc.total_balance)}` : acc.currency === 'USD' ? `$${formatPrice(acc.total_balance)}` : formatQuantity(acc.total_balance)}
                     </td>
                     <td className="py-2 px-3 text-right text-[#787B86]">
-                      ${formatPrice(estValue)}
+                      ₹{formatPrice(estValue)}
                     </td>
                     <td className="py-2 px-3 text-center">
                       <button
-                        onClick={() => handleDeposit(acc.currency, acc.currency === 'USD' ? '10000' : '1')}
+                        onClick={() => handleDeposit(acc.currency, acc.currency === 'INR' ? '100000' : acc.currency === 'USD' ? '10000' : '1')}
                         disabled={depositing === acc.currency}
                         className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-[#2962FF]/10 text-[#2962FF] hover:bg-[#2962FF]/20 border border-[#2962FF]/30 transition-colors disabled:opacity-50"
                       >
                         <PlusCircle size={10} />
-                        +{acc.currency === 'USD' ? '$10K' : `1 ${acc.currency}`}
+                        +{acc.currency === 'INR' ? '₹1 Lakh' : acc.currency === 'USD' ? '$10K' : `1 ${acc.currency}`}
                       </button>
                     </td>
                   </tr>

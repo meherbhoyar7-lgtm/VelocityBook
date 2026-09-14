@@ -48,7 +48,7 @@ export default function Header() {
 
   const handleDeposit = async () => {
     try {
-      await api.depositFaucet('USD', '10000');
+      await api.depositFaucet('INR', '100000');
       const portfolio = await api.getPortfolio();
       setAccounts(portfolio.accounts);
     } catch (err) {
@@ -56,7 +56,7 @@ export default function Header() {
     }
   };
 
-  const usdAccount = accounts.find((a) => a.currency === 'USD');
+  const inrAccount = accounts.find((a) => a.currency === 'INR') || accounts.find((a) => a.currency === 'USD');
 
   return (
     <header className="h-14 border-b border-[#1E222D] bg-[#131722] flex items-center px-4 gap-6 text-sm">
@@ -68,8 +68,10 @@ export default function Header() {
           onChange={(e) => setSelectedSymbol(e.target.value)}
           className="bg-[#1E222D] text-[#D1D4DC] border border-[#2A2E39] rounded px-3 py-1.5 text-sm font-mono cursor-pointer focus:outline-none focus:border-[#2962FF]"
         >
-          <option value="BTC-USD">BTC / USD</option>
-          <option value="ETH-USD">ETH / USD</option>
+          <option value="BTC-INR">BTC / INR (₹)</option>
+          <option value="ETH-INR">ETH / INR (₹)</option>
+          <option value="BTC-USD">BTC / USD ($)</option>
+          <option value="ETH-USD">ETH / USD ($)</option>
         </select>
       </div>
 
@@ -78,16 +80,20 @@ export default function Header() {
         <div>
           <span className="text-[#787B86] text-xs mr-1">Last</span>
           <span className="text-[#D1D4DC] font-semibold text-base">
-            ${lastPrice ? formatPrice(lastPrice) : midPrice ? formatPrice(midPrice) : '—'}
+            {lastPrice ? (selectedSymbol.includes('INR') ? `₹${formatPrice(lastPrice)}` : `$${formatPrice(lastPrice)}`) : midPrice ? (selectedSymbol.includes('INR') ? `₹${formatPrice(midPrice)}` : `$${formatPrice(midPrice)}`) : '—'}
           </span>
         </div>
         <div>
           <span className="text-[#787B86] text-xs mr-1">Spread</span>
-          <span className="text-[#D1D4DC]">{spread ? formatPrice(spread) : '—'}</span>
+          <span className="text-[#D1D4DC]">
+            {spread ? (selectedSymbol.includes('INR') ? `₹${formatPrice(spread)}` : `$${formatPrice(spread)}`) : '—'}
+          </span>
         </div>
         <div>
           <span className="text-[#787B86] text-xs mr-1">Mid</span>
-          <span className="text-[#D1D4DC]">{midPrice ? formatPrice(midPrice) : '—'}</span>
+          <span className="text-[#D1D4DC]">
+            {midPrice ? (selectedSymbol.includes('INR') ? `₹${formatPrice(midPrice)}` : `$${formatPrice(midPrice)}`) : '—'}
+          </span>
         </div>
       </div>
 
@@ -117,14 +123,14 @@ export default function Header() {
         className="flex items-center gap-1 px-3 py-1.5 bg-[#2962FF]/10 border border-[#2962FF]/30 text-[#2962FF] rounded hover:bg-[#2962FF]/20 transition-colors text-xs"
       >
         <DollarSign size={12} />
-        Deposit
+        +₹1 Lakh
       </button>
 
       {/* Balance */}
-      {usdAccount && (
+      {inrAccount && (
         <div className="font-mono text-xs">
-          <span className="text-[#787B86]">USD: </span>
-          <span className="text-[#D1D4DC]">${formatPrice(usdAccount.available_balance)}</span>
+          <span className="text-[#787B86]">{inrAccount.currency}: </span>
+          <span className="text-[#D1D4DC]">₹{formatPrice(inrAccount.available_balance)}</span>
         </div>
       )}
 

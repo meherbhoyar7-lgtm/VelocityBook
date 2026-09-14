@@ -110,7 +110,10 @@ export default function CandlestickChart() {
     volumeSeriesRef.current = volumeSeries;
 
     // Fetch or populate data
-    const basePrice = selectedSymbol.startsWith('BTC') ? 64000 : 3400;
+    const isINR = selectedSymbol.includes('INR');
+    const basePrice = selectedSymbol.startsWith('BTC')
+      ? (isINR ? 4500000 : 64000)
+      : (isINR ? 275000 : 3400);
 
     api.getCandles(selectedSymbol, resolution)
       .then((res) => {
@@ -277,22 +280,29 @@ export default function CandlestickChart() {
         {/* OHLCV Legend */}
         {activeDisplay && (
           <div className="hidden lg:flex items-center gap-3 font-mono text-[11px]">
-            <div>
-              <span className="text-[#787B86]">O: </span>
-              <span className={isUp ? 'text-[#089981]' : 'text-[#F23645]'}>{formatPrice(activeDisplay.open)}</span>
-            </div>
-            <div>
-              <span className="text-[#787B86]">H: </span>
-              <span className={isUp ? 'text-[#089981]' : 'text-[#F23645]'}>{formatPrice(activeDisplay.high)}</span>
-            </div>
-            <div>
-              <span className="text-[#787B86]">L: </span>
-              <span className={isUp ? 'text-[#089981]' : 'text-[#F23645]'}>{formatPrice(activeDisplay.low)}</span>
-            </div>
-            <div>
-              <span className="text-[#787B86]">C: </span>
-              <span className={isUp ? 'text-[#089981]' : 'text-[#F23645]'}>{formatPrice(activeDisplay.close)}</span>
-            </div>
+            {(() => {
+              const curSym = selectedSymbol.includes('INR') ? '₹' : '$';
+              return (
+                <>
+                  <div>
+                    <span className="text-[#787B86]">O: </span>
+                    <span className={isUp ? 'text-[#089981]' : 'text-[#F23645]'}>{curSym}{formatPrice(activeDisplay.open)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[#787B86]">H: </span>
+                    <span className={isUp ? 'text-[#089981]' : 'text-[#F23645]'}>{curSym}{formatPrice(activeDisplay.high)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[#787B86]">L: </span>
+                    <span className={isUp ? 'text-[#089981]' : 'text-[#F23645]'}>{curSym}{formatPrice(activeDisplay.low)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[#787B86]">C: </span>
+                    <span className={isUp ? 'text-[#089981]' : 'text-[#F23645]'}>{curSym}{formatPrice(activeDisplay.close)}</span>
+                  </div>
+                </>
+              );
+            })()}
             <div>
               <span className="text-[#787B86]">Chg: </span>
               <span className={isUp ? 'text-[#089981]' : 'text-[#F23645]'}>

@@ -20,7 +20,7 @@ const app = express();
 const server = http.createServer(app);
 
 // Matching engine with supported trading pairs
-const engine = new MatchingEngine(['BTC-USD', 'ETH-USD']);
+const engine = new MatchingEngine(['BTC-INR', 'ETH-INR', 'BTC-USD', 'ETH-USD']);
 
 // WebSocket server
 const wsServer = new VelocityWebSocketServer(server);
@@ -68,7 +68,7 @@ app.use('/api/faucet', faucetRoutes);
 // GET /api/orderbook?symbol=BTC-USD
 app.get('/api/orderbook', (req, res) => {
   try {
-    const symbol = (req.query.symbol as string) || 'BTC-USD';
+    const symbol = (req.query.symbol as string) || 'BTC-INR';
     const depth = parseInt((req.query.depth as string) || '25', 10);
     const snapshot = engine.getOrderBookSnapshot(symbol, depth);
 

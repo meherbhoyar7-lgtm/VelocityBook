@@ -56,7 +56,7 @@ export default function TradeHistory() {
               <th className="py-2 px-3">Side</th>
               <th className="py-2 px-3 text-right">Price</th>
               <th className="py-2 px-3 text-right">Executed Quantity</th>
-              <th className="py-2 px-3 text-right">Total (USD)</th>
+              <th className="py-2 px-3 text-right">Total</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#1E222D]/40">
@@ -69,6 +69,7 @@ export default function TradeHistory() {
             ) : (
               trades.map((trade) => {
                 const total = (Number(trade.price) * Number(trade.quantity)).toFixed(2);
+                const sym = trade.symbol?.includes('USD') ? '$' : '₹';
                 return (
                   <tr key={trade.id} className="hover:bg-[#1E222D]/40 transition-colors">
                     <td className="py-2 px-3 text-[#787B86]">
@@ -81,13 +82,13 @@ export default function TradeHistory() {
                       </span>
                     </td>
                     <td className="py-2 px-3 text-right text-[#D1D4DC]">
-                      ${formatPrice(trade.price)}
+                      {sym}{formatPrice(trade.price)}
                     </td>
                     <td className="py-2 px-3 text-right text-[#D1D4DC]">
                       {formatQuantity(trade.quantity)}
                     </td>
                     <td className="py-2 px-3 text-right text-[#787B86]">
-                      ${formatPrice(total)}
+                      {sym}{formatPrice(total)}
                     </td>
                   </tr>
                 );

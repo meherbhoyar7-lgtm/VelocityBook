@@ -23,7 +23,7 @@ export const useUserStore = create<UserState>((set) => ({
   token: null,
   accounts: [],
   demoUsers: [],
-  selectedSymbol: 'BTC-USD',
+  selectedSymbol: 'BTC-INR',
   isConnected: false,
   setUser: (userId, displayName, token) => set({ userId, displayName, token }),
   setAccounts: (accounts) => set({ accounts }),

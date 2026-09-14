@@ -194,7 +194,7 @@ export default function OrderEntry({ initialPrice }: OrderEntryProps) {
         {orderType === 'LIMIT' && estimatedTotal > 0 && (
           <div className="flex justify-between">
             <span className="text-[#787B86]">Total</span>
-            <span className="text-[#D1D4DC]">${formatPrice(estimatedTotal)}</span>
+            <span className="text-[#D1D4DC]">{quoteCurrency === 'INR' ? '₹' : '$'}{formatPrice(estimatedTotal)}</span>
           </div>
         )}
       </div>

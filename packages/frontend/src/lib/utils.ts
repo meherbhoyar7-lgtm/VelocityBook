@@ -1,5 +1,5 @@
 export function formatPrice(price: string | number, decimals: number = 2): string {
-  return Number(price).toLocaleString('en-US', {
+  return Number(price).toLocaleString('en-IN', {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   });

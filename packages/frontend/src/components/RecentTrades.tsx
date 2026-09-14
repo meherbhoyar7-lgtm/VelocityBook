@@ -49,11 +49,13 @@ export default function RecentTrades() {
     return d.toTimeString().split(' ')[0];
   };
 
+  const quoteCurrency = selectedSymbol.split('-')[1] || 'INR';
+
   return (
     <div className="flex flex-col h-full bg-[#131722] border-l border-[#1E222D] text-xs font-mono">
       {/* Header */}
       <div className="grid grid-cols-3 px-3 py-2 text-[#787B86] border-b border-[#1E222D] text-[10px] uppercase tracking-wider">
-        <span>Price (USD)</span>
+        <span>Price ({quoteCurrency})</span>
         <span className="text-right">Size</span>
         <span className="text-right">Time</span>
       </div>

@@ -1,6 +1,6 @@
 import { Pool, PoolClient } from 'pg';
 
-const DATABASE_URL = process.env.DATABASE_URL || 'postgres://vb_user:vb_pass@localhost:5432/velocitybook';
+const DATABASE_URL = process.env.DATABASE_URL || 'postgres://vb_user:vb_pass@localhost:5433/velocitybook';
 
 /**
  * PostgreSQL connection pool.

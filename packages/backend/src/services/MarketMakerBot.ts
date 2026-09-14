@@ -30,6 +30,8 @@ export class MarketMakerBot {
     this.engine = engine;
     this.wsServer = wsServer;
     this.midPrice = {
+      'BTC-INR': new Decimal(4250000),
+      'ETH-INR': new Decimal(255000),
       'BTC-USD': new Decimal(50000),
       'ETH-USD': new Decimal(3000),
     };

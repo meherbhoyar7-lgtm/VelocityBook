@@ -1,6 +1,7 @@
 'use client';
 
 import { useOrderBookStore } from '@/stores/useOrderBookStore';
+import { useUserStore } from '@/stores/useUserStore';
 import { formatPrice, formatQuantity } from '@/lib/utils';
 import { useRef, useEffect, useState } from 'react';
 
@@ -13,6 +14,9 @@ export default function OrderBook({ onPriceClick }: OrderBookProps) {
   const asks = useOrderBookStore((s) => s.asks);
   const spread = useOrderBookStore((s) => s.spread);
   const midPrice = useOrderBookStore((s) => s.midPrice);
+  const selectedSymbol = useUserStore((s) => s.selectedSymbol);
+  const quoteCurrency = selectedSymbol.split('-')[1] || 'INR';
+  const currencySymbol = quoteCurrency === 'INR' ? '₹' : '$';
 
   // Track which rows changed for flash animation
   const [flashedRows, setFlashedRows] = useState<Set<string>>(new Set());
@@ -49,7 +53,7 @@ export default function OrderBook({ onPriceClick }: OrderBookProps) {
     <div className="flex flex-col h-full bg-[#131722] border-r border-[#1E222D] text-xs font-mono">
       {/* Header */}
       <div className="grid grid-cols-3 px-3 py-2 text-[#787B86] border-b border-[#1E222D] text-[10px] uppercase tracking-wider">
-        <span>Price (USD)</span>
+        <span>Price ({quoteCurrency})</span>
         <span className="text-right">Size</span>
         <span className="text-right">Total</span>
       </div>
@@ -83,10 +87,10 @@ export default function OrderBook({ onPriceClick }: OrderBookProps) {
       {/* Spread */}
       <div className="px-3 py-2 border-y border-[#1E222D] bg-[#0B0E14] flex items-center justify-between">
         <span className="text-[#D1D4DC] font-semibold text-sm">
-          {midPrice ? `$${formatPrice(midPrice)}` : '—'}
+          {midPrice ? `${currencySymbol}${formatPrice(midPrice)}` : '—'}
         </span>
         <span className="text-[#787B86] text-[10px]">
-          Spread: {spread ? formatPrice(spread) : '—'}
+          Spread: {spread ? `${currencySymbol}${formatPrice(spread)}` : '—'}
         </span>
       </div>
 

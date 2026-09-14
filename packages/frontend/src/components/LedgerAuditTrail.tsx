@@ -104,7 +104,7 @@ export default function LedgerAuditTrail() {
                     </td>
                     <td className="py-2 px-3 text-right">
                       <span className={isCredit ? 'text-[#089981]' : 'text-[#F23645]'}>
-                        {isCredit ? '+' : '-'}{entry.currency === 'USD' ? `$${formatPrice(entry.amount)}` : formatQuantity(entry.amount)}
+                        {isCredit ? '+' : '-'}{entry.currency === 'INR' ? `₹${formatPrice(entry.amount)}` : entry.currency === 'USD' ? `$${formatPrice(entry.amount)}` : formatQuantity(entry.amount)}
                       </span>
                     </td>
                     <td className="py-2 px-3 text-[#D1D4DC] truncate max-w-xs">

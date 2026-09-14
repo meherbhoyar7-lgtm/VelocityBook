@@ -168,9 +168,9 @@ The database comes pre-seeded with 3 demo accounts equipped with virtual funds:
 
 | User | Email | Initial Balance | Role |
 | :--- | :--- | :--- | :--- |
-| **Alice Smith** | `alice@velocitybook.io` | $100,000 USD, 10 BTC, 100 ETH | Active Retail Trader |
-| **Bob Jones** | `bob@velocitybook.io` | $100,000 USD, 10 BTC, 100 ETH | Counterparty Trader |
-| **Market Maker Bot** | `marketmaker@velocitybook.io` | $1,000,000 USD, 100 BTC, 500 ETH | Automated Liquidity Provider |
+| **Alice Smith** | `alice@velocitybook.io` | ₹8,500,000 INR, 10 BTC, 100 ETH | Active Retail Trader |
+| **Bob Jones** | `bob@velocitybook.io` | ₹8,500,000 INR, 10 BTC, 100 ETH | Counterparty Trader |
+| **Market Maker Bot** | `marketmaker@velocitybook.io` | ₹85,000,000 INR, 100 BTC, 1,000 ETH | Automated Liquidity Provider |
 
 You can switch between users instantly in the header navigation or deposit additional virtual funds via the faucet button.
 

@@ -36,12 +36,17 @@ CREATE TABLE orders (
   user_id UUID NOT NULL REFERENCES users(id),
   symbol VARCHAR(20) NOT NULL,
   side VARCHAR(4) NOT NULL CHECK (side IN ('BUY', 'SELL')),
-  type VARCHAR(10) NOT NULL CHECK (type IN ('LIMIT', 'MARKET')),
+  type VARCHAR(20) NOT NULL CHECK (type IN ('LIMIT', 'MARKET', 'STOP_LOSS', 'ICEBERG', 'TRAILING_STOP', 'FILL_OR_KILL')),
   price NUMERIC(28, 8),
   quantity NUMERIC(28, 8) NOT NULL CHECK (quantity > 0),
   filled_quantity NUMERIC(28, 8) NOT NULL DEFAULT 0,
   status VARCHAR(20) NOT NULL DEFAULT 'PENDING'
     CHECK (status IN ('PENDING', 'OPEN', 'PARTIALLY_FILLED', 'FILLED', 'CANCELLED')),
+  -- Advanced order type fields
+  stop_price NUMERIC(28, 8),              -- STOP_LOSS / TRAILING_STOP trigger price
+  display_qty NUMERIC(28, 8),             -- ICEBERG visible slice size
+  hidden_qty NUMERIC(28, 8),              -- ICEBERG remaining hidden quantity
+  trailing_delta NUMERIC(28, 8),          -- TRAILING_STOP trail distance
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

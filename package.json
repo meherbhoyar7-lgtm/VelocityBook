@@ -11,7 +11,9 @@
     "dev:frontend": "cd packages/frontend && npm run dev",
     "build": "npm run build --workspaces",
     "test": "cd packages/engine && npx vitest run",
-    "stress-test": "npx ts-node scripts/stress-test.ts"
+    "stress-test": "npx ts-node scripts/stress-test.ts",
+    "scale-test": "npx ts-node scripts/scale-test.ts",
+    "benchmark:serialization": "npx ts-node scripts/benchmark-serialization.ts"
   },
   "engines": {
     "node": ">=18.0.0"

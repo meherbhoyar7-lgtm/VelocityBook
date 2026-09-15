@@ -1,59 +1,98 @@
-'use client';
+import { Metadata } from 'next';
+import TradingTerminalClient from '@/components/TradingTerminalClient';
+import { OrderBookData, TradeTickData } from '@/types';
 
-import { useState } from 'react';
-import Header from '@/components/Header';
-import CandlestickChart from '@/components/CandlestickChart';
-import OrderBook from '@/components/OrderBook';
-import OrderEntry from '@/components/OrderEntry';
-import RecentTrades from '@/components/RecentTrades';
-import BottomDock from '@/components/BottomDock';
-import { useWebSocket } from '@/stores/useWebSocket';
+const API_URL =
+  process.env.INTERNAL_API_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  'http://localhost:3001';
 
-export default function TradingTerminal() {
-  // Activate WebSocket connection to backend
-  useWebSocket();
+interface PageProps {
+  searchParams: Promise<{ symbol?: string }>;
+}
 
-  // Price clicked in OrderBook populates OrderEntry
-  const [selectedPrice, setSelectedPrice] = useState<string | undefined>(undefined);
+/**
+ * Dynamic SSR Metadata for SEO & Social Previews.
+ */
+export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {
+  const params = await searchParams;
+  const symbol = params?.symbol || 'BTC-USD';
+
+  return {
+    title: `${symbol} Order Book & Trading Terminal | VelocityBook`,
+    description: `Trade ${symbol} with real-time L2 order book depth, sub-millisecond matching engine execution, and ACID double-entry settlement.`,
+    openGraph: {
+      title: `${symbol} Live Order Book | VelocityBook Exchange`,
+      description: `Real-time trading terminal for ${symbol} with microsecond order execution`,
+      type: 'website',
+    },
+  };
+}
+
+/**
+ * Server-Side Data Fetching for Initial Hydration.
+ */
+async function getInitialData(symbol: string): Promise<{
+  orderBook: OrderBookData | null;
+  trades: TradeTickData[];
+  symbols: string[];
+}> {
+  let orderBook: OrderBookData | null = null;
+  let trades: TradeTickData[] = [];
+  let symbols: string[] = ['BTC-USD', 'BTC-INR', 'ETH-USD', 'ETH-INR'];
+
+  try {
+    const [bookRes, tradesRes, symbolsRes] = await Promise.allSettled([
+      fetch(`${API_URL}/api/orderbook?symbol=${symbol}`, { cache: 'no-store' }),
+      fetch(`${API_URL}/api/trades/recent?symbol=${symbol}`, { cache: 'no-store' }),
+      fetch(`${API_URL}/api/symbols`, { next: { revalidate: 30 } }),
+    ]);
+
+    if (bookRes.status === 'fulfilled' && bookRes.value.ok) {
+      orderBook = await bookRes.value.json();
+    }
+
+    if (tradesRes.status === 'fulfilled' && tradesRes.value.ok) {
+      const data = await tradesRes.value.json();
+      trades = (data.trades || []).map((t: any) => ({
+        tradeId: t.id || t.tradeId,
+        symbol: t.symbol,
+        price: t.price,
+        quantity: t.quantity,
+        buyerId: t.buyer_id || t.buyerId,
+        sellerId: t.seller_id || t.sellerId,
+        timestamp: new Date(t.executed_at || t.timestamp).getTime(),
+      }));
+    }
+
+    if (symbolsRes.status === 'fulfilled' && symbolsRes.value.ok) {
+      const data = await symbolsRes.value.json();
+      if (Array.isArray(data.symbols) && data.symbols.length > 0) {
+        symbols = data.symbols;
+      }
+    }
+  } catch {
+    // If backend is offline or during static compilation, fallback gracefully
+  }
+
+  return { orderBook, trades, symbols };
+}
+
+/**
+ * Next.js Server Component — Server-Side Rendered Trading Terminal.
+ */
+export default async function TradingTerminalPage({ searchParams }: PageProps) {
+  const params = await searchParams;
+  const symbol = params?.symbol || 'BTC-USD';
+
+  const { orderBook, trades, symbols } = await getInitialData(symbol);
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#0B0E14] text-[#D1D4DC] select-none font-sans">
-      {/* Top Header */}
-      <Header />
-
-      {/* Main Trading Terminal Layout */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Section: Chart & Bottom Dock */}
-        <div className="flex-1 flex flex-col min-w-0 border-r border-[#1E222D]">
-          {/* Top: 60fps Candlestick & Volume Chart */}
-          <div className="flex-[3] min-h-[350px] relative overflow-hidden">
-            <CandlestickChart />
-          </div>
-
-          {/* Bottom: Tabs for Open Orders, Trades, Portfolio, Ledger */}
-          <div className="flex-[2] min-h-[200px] relative overflow-hidden">
-            <BottomDock />
-          </div>
-        </div>
-
-        {/* Right Section: Order Book, Order Entry, and Recent Trades */}
-        <div className="w-[620px] shrink-0 flex">
-          {/* L2 Depth Order Book */}
-          <div className="w-[280px] h-full overflow-hidden">
-            <OrderBook onPriceClick={(p) => setSelectedPrice(p)} />
-          </div>
-
-          {/* Right Column: Order Entry on top, Recent Trades on bottom */}
-          <div className="flex-1 flex flex-col h-full min-w-0 border-l border-[#1E222D]">
-            <div className="shrink-0">
-              <OrderEntry initialPrice={selectedPrice} />
-            </div>
-            <div className="flex-1 overflow-hidden border-t border-[#1E222D]">
-              <RecentTrades />
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <TradingTerminalClient
+      initialOrderBook={orderBook}
+      initialTrades={trades}
+      initialSymbols={symbols}
+      initialSymbol={symbol}
+    />
   );
 }

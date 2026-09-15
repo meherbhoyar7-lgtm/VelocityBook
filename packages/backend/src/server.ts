@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import http from 'http';
 import jwt from 'jsonwebtoken';
-import { MatchingEngine } from '@velocitybook/engine';
+import { EngineClusterRouter } from './services/EngineClusterRouter';
 import { VelocityWebSocketServer } from './websocket/WebSocketServer';
 import { redisPublisher } from './websocket/RedisPublisher';
 import { MarketMakerBot } from './services/MarketMakerBot';
@@ -19,8 +19,9 @@ const PORT = parseInt(process.env.PORT || '3001', 10);
 const app = express();
 const server = http.createServer(app);
 
-// Matching engine with supported trading pairs
-const engine = new MatchingEngine(['BTC-INR', 'ETH-INR', 'BTC-USD', 'ETH-USD']);
+// Matching engine cluster router (sharded or local in-process)
+const engine = new EngineClusterRouter();
+
 
 // WebSocket server
 const wsServer = new VelocityWebSocketServer(server);
@@ -97,6 +98,7 @@ app.get('/api/health', (_req, res) => {
     engine: {
       symbols: engine.getSymbols(),
       totalOrders: engine.getTotalOrderCount(),
+      cluster: engine.getClusterHealth(),
     },
     websocket: {
       clients: wsServer.getClientCount(),
@@ -109,6 +111,13 @@ app.get('/api/health', (_req, res) => {
 
 async function start(): Promise<void> {
   try {
+    // Initialize engine router (sharded cluster or local)
+    try {
+      await engine.initialize();
+    } catch (err) {
+      console.warn('[Server] Engine cluster initialization warning:', (err as Error).message);
+    }
+
     // Connect to Redis
     try {
       await redisPublisher.connect();

@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import Decimal from 'decimal.js';
 import { OrderBook } from './OrderBook';
+import { TriggerRegistry } from './TriggerRegistry';
 import {
   Order,
   Side,
@@ -14,8 +15,11 @@ import {
 /**
  * MatchingEngine — the top-level orchestrator.
  *
- * Manages multiple OrderBooks (one per trading pair) and emits events
- * for every trade, order placement, cancellation, and book change.
+ * Manages multiple OrderBooks (one per trading pair) and an isolated
+ * TriggerRegistry for conditional orders (Stop-Loss, Trailing-Stop).
+ *
+ * Emits events for every trade, order placement, cancellation, stop
+ * trigger, and book change.
  *
  * This is a pure in-memory component with zero I/O on the critical path.
  * Settlement, persistence, and broadcasting are handled by downstream
@@ -25,9 +29,14 @@ export class MatchingEngine extends EventEmitter {
   private books: Map<string, OrderBook> = new Map();
   private supportedSymbols: Set<string>;
 
+  /** Isolated trigger registry for stop-loss and trailing-stop orders */
+  public readonly triggerRegistry: TriggerRegistry;
+
   constructor(symbols: string[] = ['BTC-USD', 'ETH-USD']) {
     super();
     this.supportedSymbols = new Set(symbols);
+    this.triggerRegistry = new TriggerRegistry();
+
     for (const symbol of symbols) {
       this.books.set(symbol, new OrderBook(symbol));
     }
@@ -40,11 +49,12 @@ export class MatchingEngine extends EventEmitter {
    *
    * The engine will:
    * 1. Validate the order
-   * 2. Attempt to match against the opposite book
-   * 3. Rest any unfilled LIMIT quantity on the book
-   * 4. Emit trade and order events
+   * 2. Route to the correct handler (book or trigger registry)
+   * 3. Attempt to match against the opposite book
+   * 4. On each trade: evaluate trigger registry for stop activations
+   * 5. Emit trade, order, and stop-trigger events
    *
-   * @returns Array of trades that resulted from matching
+   * @returns Array of all trades that resulted from matching (including stop activations)
    */
   public submitOrder(order: Order): TradeExecution[] {
     this.validateOrder(order);
@@ -54,13 +64,45 @@ export class MatchingEngine extends EventEmitter {
       throw new Error(`Unsupported symbol: ${order.symbol}`);
     }
 
-    // Execute matching
+    // ── Route stop/trailing-stop to TriggerRegistry (off-book) ──
+    if (order.type === OrderType.STOP_LOSS || order.type === OrderType.TRAILING_STOP) {
+      this.triggerRegistry.register(order);
+      this.emit('event', { type: 'order_placed', data: order } as EngineEvent);
+      return [];
+    }
+
+    // ── Execute matching on the book ──
     const trades = book.addOrder(order);
 
-    // Emit events
+    // Emit trade events
+    for (const trade of trades) {
+      this.emit('event', { type: 'trade', data: trade } as EngineEvent);
+    }
+
+    // ── After trades: evaluate triggers ──
     if (trades.length > 0) {
-      for (const trade of trades) {
-        this.emit('event', { type: 'trade', data: trade } as EngineEvent);
+      const lastTradePrice = trades[trades.length - 1].price;
+      const activatedOrders = this.triggerRegistry.onTradeTick(order.symbol, lastTradePrice);
+
+      // Process each activated stop order through the book
+      for (const activated of activatedOrders) {
+        this.emit('event', { type: 'stop_triggered', data: activated } as EngineEvent);
+
+        const stopTrades: TradeExecution[] = [];
+        book.matchMarketOrder(activated, stopTrades);
+
+        if (activated.filledQuantity.gte(activated.quantity)) {
+          activated.status = OrderStatus.FILLED;
+        } else if (activated.filledQuantity.gt(0)) {
+          activated.status = OrderStatus.PARTIALLY_FILLED;
+        } else {
+          activated.status = OrderStatus.CANCELLED;
+        }
+
+        for (const stopTrade of stopTrades) {
+          this.emit('event', { type: 'trade', data: stopTrade } as EngineEvent);
+        }
+        trades.push(...stopTrades);
       }
     }
 
@@ -77,8 +119,9 @@ export class MatchingEngine extends EventEmitter {
 
   /**
    * Cancel an order by ID and symbol.
+   * Checks both the resting order book and the trigger registry.
    *
-   * @returns The cancelled order, or null if not found on the book
+   * @returns The cancelled order, or null if not found
    */
   public cancelOrder(symbol: string, orderId: string): Order | null {
     const book = this.books.get(symbol);
@@ -86,7 +129,14 @@ export class MatchingEngine extends EventEmitter {
       throw new Error(`Unsupported symbol: ${symbol}`);
     }
 
-    const cancelled = book.cancelOrder(orderId);
+    // Try resting book orders first
+    let cancelled = book.cancelOrder(orderId);
+
+    // Try trigger registry if not found on book
+    if (!cancelled) {
+      cancelled = this.triggerRegistry.cancel(orderId);
+    }
+
     if (cancelled) {
       this.emit('event', { type: 'order_cancelled', data: cancelled } as EngineEvent);
       this.emit('event', {
@@ -100,9 +150,6 @@ export class MatchingEngine extends EventEmitter {
 
   // ─── Queries ─────────────────────────────────────────────────────
 
-  /**
-   * Get the L2 order book snapshot for a symbol.
-   */
   public getOrderBookSnapshot(symbol: string, depth: number = 25): OrderBookSnapshot {
     const book = this.books.get(symbol);
     if (!book) {
@@ -111,49 +158,32 @@ export class MatchingEngine extends EventEmitter {
     return book.getSnapshot(depth);
   }
 
-  /**
-   * Get the best bid price for a symbol.
-   */
   public getBestBid(symbol: string): Decimal | null {
     const book = this.books.get(symbol);
     return book ? book.getBestBid() : null;
   }
 
-  /**
-   * Get the best ask price for a symbol.
-   */
   public getBestAsk(symbol: string): Decimal | null {
     const book = this.books.get(symbol);
     return book ? book.getBestAsk() : null;
   }
 
-  /**
-   * Get the mid-market price for a symbol.
-   */
   public getMidPrice(symbol: string): Decimal | null {
     const book = this.books.get(symbol);
     return book ? book.getMidPrice() : null;
   }
 
-  /**
-   * Get the spread for a symbol.
-   */
   public getSpread(symbol: string): Decimal | null {
     const book = this.books.get(symbol);
     return book ? book.getSpread() : null;
   }
 
-  /**
-   * Check if an order exists on any book.
-   */
   public hasOrder(symbol: string, orderId: string): boolean {
     const book = this.books.get(symbol);
-    return book ? book.hasOrder(orderId) : false;
+    if (book && book.hasOrder(orderId)) return true;
+    return this.triggerRegistry.has(orderId);
   }
 
-  /**
-   * Get the total number of resting orders across all books.
-   */
   public getTotalOrderCount(): number {
     let count = 0;
     for (const book of this.books.values()) {
@@ -162,16 +192,10 @@ export class MatchingEngine extends EventEmitter {
     return count;
   }
 
-  /**
-   * Get all supported symbols.
-   */
   public getSymbols(): string[] {
     return Array.from(this.supportedSymbols);
   }
 
-  /**
-   * Get the OrderBook instance for a symbol (for advanced access).
-   */
   public getBook(symbol: string): OrderBook | undefined {
     return this.books.get(symbol);
   }
@@ -195,7 +219,12 @@ export class MatchingEngine extends EventEmitter {
       throw new Error(`Invalid side: ${order.side}`);
     }
 
-    if (![OrderType.LIMIT, OrderType.MARKET].includes(order.type)) {
+    const validTypes = [
+      OrderType.LIMIT, OrderType.MARKET,
+      OrderType.STOP_LOSS, OrderType.ICEBERG,
+      OrderType.TRAILING_STOP, OrderType.FILL_OR_KILL,
+    ];
+    if (!validTypes.includes(order.type)) {
       throw new Error(`Invalid order type: ${order.type}`);
     }
 
@@ -205,6 +234,19 @@ export class MatchingEngine extends EventEmitter {
 
     if (order.type === OrderType.LIMIT && order.price.lte(0)) {
       throw new Error('Limit order must have a positive price');
+    }
+
+    // Stop orders require a stopPrice
+    if (
+      (order.type === OrderType.STOP_LOSS || order.type === OrderType.TRAILING_STOP) &&
+      (!order.stopPrice || order.stopPrice.lte(0))
+    ) {
+      throw new Error('Stop orders must have a positive stopPrice');
+    }
+
+    // Iceberg orders require a positive price (they rest on the book)
+    if (order.type === OrderType.ICEBERG && order.price.lte(0)) {
+      throw new Error('Iceberg order must have a positive price');
     }
   }
 }
@@ -221,6 +263,9 @@ export function createOrder(params: {
   price: number | string;
   quantity: number | string;
   id?: string;
+  stopPrice?: number | string;
+  trailingDelta?: number | string;
+  displayQty?: number | string;
 }): Order {
   orderCounter++;
   return {
@@ -234,5 +279,8 @@ export function createOrder(params: {
     filledQuantity: new Decimal(0),
     status: OrderStatus.PENDING,
     timestamp: Date.now(),
+    ...(params.stopPrice !== undefined && { stopPrice: new Decimal(params.stopPrice) }),
+    ...(params.trailingDelta !== undefined && { trailingDelta: new Decimal(params.trailingDelta) }),
+    ...(params.displayQty !== undefined && { displayQty: new Decimal(params.displayQty) }),
   };
 }

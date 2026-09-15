@@ -26,7 +26,7 @@ router.post('/', async (req: Request, res: Response) => {
     const userId = (req as any).userId;
     if (!userId) return res.status(401).json({ error: 'Not authenticated' });
 
-    const { symbol, side, type, price, quantity } = req.body;
+    const { symbol, side, type, price, quantity, stopPrice, displayQty, trailingDelta } = req.body;
 
     // Input validation
     if (!symbol || !side || !type || !quantity) {
@@ -37,8 +37,9 @@ router.post('/', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Side must be BUY or SELL' });
     }
 
-    if (!['LIMIT', 'MARKET'].includes(type)) {
-      return res.status(400).json({ error: 'Type must be LIMIT or MARKET' });
+    const validTypes = ['LIMIT', 'MARKET', 'STOP_LOSS', 'ICEBERG', 'TRAILING_STOP', 'FILL_OR_KILL'];
+    if (!validTypes.includes(type)) {
+      return res.status(400).json({ error: `Type must be one of: ${validTypes.join(', ')}` });
     }
 
     const qty = new Decimal(quantity);
@@ -46,41 +47,77 @@ router.post('/', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Quantity must be positive' });
     }
 
+    // Stop orders require stopPrice
+    if ((type === 'STOP_LOSS' || type === 'TRAILING_STOP') && !stopPrice) {
+      return res.status(400).json({ error: 'Stop orders require a stopPrice' });
+    }
+
     let orderPrice: Decimal;
-    if (type === 'LIMIT') {
-      if (!price) return res.status(400).json({ error: 'Limit orders require a price' });
+    if (type === 'LIMIT' || type === 'ICEBERG') {
+      if (!price) return res.status(400).json({ error: `${type} orders require a price` });
       orderPrice = new Decimal(price);
       if (orderPrice.lte(0)) return res.status(400).json({ error: 'Price must be positive' });
+    } else if (type === 'STOP_LOSS' || type === 'TRAILING_STOP') {
+      // Stop orders don't need a book price — they trigger at stopPrice
+      orderPrice = new Decimal(0);
     } else {
-      // Market order — use a very high/low price for locking estimation
+      // MARKET / FILL_OR_KILL — use estimate for locking
       const bestAsk = matchingEngine.getBestAsk(symbol);
       const bestBid = matchingEngine.getBestBid(symbol);
       if (side === 'BUY') {
-        orderPrice = bestAsk ? bestAsk.times(1.1) : new Decimal(100000); // Estimate
+        orderPrice = bestAsk ? bestAsk.times(1.1) : new Decimal(100000);
       } else {
         orderPrice = bestBid ? bestBid.times(0.9) : new Decimal(1);
       }
     }
 
     const orderId = uuidv4();
+    const parsedDisplayQty = displayQty ? new Decimal(displayQty) : undefined;
 
     // Pre-trade risk check + balance locking (inside transaction)
-    await withTransaction(async (client) => {
-      await RiskService.lockFundsForOrder(client, {
-        userId,
-        symbol,
-        side,
-        price: orderPrice,
-        quantity: qty,
-      });
+    // Stop orders don't lock funds until triggered
+    if (type !== 'STOP_LOSS' && type !== 'TRAILING_STOP') {
+      await withTransaction(async (client) => {
+        await RiskService.lockFundsForOrder(client, {
+          userId,
+          symbol,
+          side,
+          price: orderPrice,
+          quantity: qty,
+          orderType: type,
+          displayQty: parsedDisplayQty,
+        });
 
-      // Insert order record into database
-      await client.query(
-        `INSERT INTO orders (id, user_id, symbol, side, type, price, quantity, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'OPEN')`,
-        [orderId, userId, symbol, side, type, type === 'LIMIT' ? orderPrice.toFixed(8) : null, qty.toFixed(8)]
-      );
-    });
+        // Insert order record into database
+        await client.query(
+          `INSERT INTO orders (id, user_id, symbol, side, type, price, quantity, status, stop_price, display_qty, hidden_qty, trailing_delta)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, 'OPEN', $8, $9, $10, $11)`,
+          [
+            orderId, userId, symbol, side, type,
+            ['LIMIT', 'ICEBERG'].includes(type) ? orderPrice.toFixed(8) : null,
+            qty.toFixed(8),
+            stopPrice ? new Decimal(stopPrice).toFixed(8) : null,
+            displayQty ? new Decimal(displayQty).toFixed(8) : null,
+            type === 'ICEBERG' ? qty.toFixed(8) : null,
+            trailingDelta ? new Decimal(trailingDelta).toFixed(8) : null,
+          ]
+        );
+      });
+    } else {
+      // Stop orders: insert as PENDING, no fund lock
+      await withTransaction(async (client) => {
+        await client.query(
+          `INSERT INTO orders (id, user_id, symbol, side, type, price, quantity, status, stop_price, trailing_delta)
+           VALUES ($1, $2, $3, $4, $5, NULL, $6, 'PENDING', $7, $8)`,
+          [
+            orderId, userId, symbol, side, type,
+            qty.toFixed(8),
+            new Decimal(stopPrice).toFixed(8),
+            trailingDelta ? new Decimal(trailingDelta).toFixed(8) : null,
+          ]
+        );
+      });
+    }
 
     // Submit to matching engine
     const order = createOrder({
@@ -91,9 +128,12 @@ router.post('/', async (req: Request, res: Response) => {
       type: type as OrderType,
       price: orderPrice.toString(),
       quantity: qty.toString(),
+      ...(stopPrice && { stopPrice: stopPrice.toString() }),
+      ...(trailingDelta && { trailingDelta: trailingDelta.toString() }),
+      ...(displayQty && { displayQty: displayQty.toString() }),
     });
 
-    const trades = matchingEngine.submitOrder(order);
+    const trades = await matchingEngine.submitOrder(order);
 
     // Settle each trade
     for (const trade of trades) {
@@ -214,7 +254,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
     }
 
     // Cancel in matching engine
-    matchingEngine.cancelOrder(dbOrder.symbol, id);
+    await matchingEngine.cancelOrder(dbOrder.symbol, id);
 
     // Unlock funds
     const remaining = new Decimal(dbOrder.quantity).minus(new Decimal(dbOrder.filled_quantity));

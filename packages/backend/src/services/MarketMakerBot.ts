@@ -19,15 +19,17 @@ const MM_USER_ID = 'c0000000-0000-0000-0000-000000000003';
  * 3. Occasionally crosses the spread to generate trade executions
  */
 export class MarketMakerBot {
-  private engine: MatchingEngine;
+  private engine: any;
   private wsServer: any;
   private running = false;
   private intervalId: NodeJS.Timeout | null = null;
   private activeOrderIds: Map<string, { symbol: string; side: 'BUY' | 'SELL'; price: Decimal; quantity: Decimal }> = new Map();
   private midPrice: Record<string, Decimal> = {};
 
-  constructor(engine: MatchingEngine, wsServer?: any) {
-    this.engine = engine;
+  constructor(engine: any, wsServer?: any) {
+    this.engine = (engine && typeof engine.getLocalEngine === 'function' && engine.getLocalEngine())
+      ? engine.getLocalEngine()
+      : engine;
     this.wsServer = wsServer;
     this.midPrice = {
       'BTC-INR': new Decimal(4250000),
@@ -125,7 +127,7 @@ export class MarketMakerBot {
       if (!orderInfo) continue;
 
       // Cancel in engine
-      this.engine.cancelOrder(symbol, orderId);
+      await this.engine.cancelOrder(symbol, orderId);
 
       // Unlock in DB
       try {
@@ -231,7 +233,7 @@ export class MarketMakerBot {
         quantity: quantity.toString(),
       });
 
-      const trades = this.engine.submitOrder(order);
+      const trades = await this.engine.submitOrder(order);
 
       // Track active limit orders
       if (type === OrderType.LIMIT && order.status !== OrderStatus.FILLED) {

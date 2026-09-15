@@ -42,6 +42,8 @@ export class RiskService {
       side: 'BUY' | 'SELL';
       price: Decimal;
       quantity: Decimal;
+      orderType?: string;
+      displayQty?: Decimal;  // ICEBERG: lock only the visible slice exposure
     }
   ): Promise<{ lockedAmount: Decimal; accountId: string }> {
     const [baseCurrency, quoteCurrency] = params.symbol.split('-');
@@ -49,14 +51,21 @@ export class RiskService {
     let currency: string;
     let lockAmount: Decimal;
 
+    // For ICEBERG orders, lock only the active exposure (displayQty)
+    // not the full hidden quantity. Additional slices will be locked
+    // incrementally as each visible slice is replenished.
+    const effectiveQty = (params.orderType === 'ICEBERG' && params.displayQty)
+      ? params.displayQty
+      : params.quantity;
+
     if (params.side === 'BUY') {
       // Buyer locks quote currency (USD)
       currency = quoteCurrency;
-      lockAmount = params.price.times(params.quantity);
+      lockAmount = params.price.times(effectiveQty);
     } else {
       // Seller locks base currency (BTC)
       currency = baseCurrency;
-      lockAmount = params.quantity;
+      lockAmount = effectiveQty;
     }
 
     // Acquire row-level lock

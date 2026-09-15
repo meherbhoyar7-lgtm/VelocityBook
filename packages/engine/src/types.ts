@@ -10,6 +10,10 @@ export enum Side {
 export enum OrderType {
   LIMIT = 'LIMIT',
   MARKET = 'MARKET',
+  STOP_LOSS = 'STOP_LOSS',
+  ICEBERG = 'ICEBERG',
+  TRAILING_STOP = 'TRAILING_STOP',
+  FILL_OR_KILL = 'FILL_OR_KILL',
 }
 
 export enum OrderStatus {
@@ -33,6 +37,14 @@ export interface Order {
   filledQuantity: Decimal;
   status: OrderStatus;
   timestamp: number;       // Unix ms — used for FIFO tiebreaking
+
+  // ── Stop-Loss & Trailing-Stop fields ──
+  stopPrice?: Decimal;     // Trigger price (promotes to MARKET/LIMIT when crossed)
+  trailingDelta?: Decimal; // Trailing-stop: distance the stop trails behind high-water mark
+
+  // ── Iceberg fields ──
+  displayQty?: Decimal;    // Visible slice size resting on L2 book
+  hiddenQty?: Decimal;     // Remaining hidden quantity behind the visible slice
 }
 
 export interface TradeExecution {
@@ -75,4 +87,5 @@ export type EngineEvent =
   | { type: 'order_placed'; data: Order }
   | { type: 'order_cancelled'; data: Order }
   | { type: 'order_updated'; data: Order }
+  | { type: 'stop_triggered'; data: Order }
   | { type: 'orderbook_changed'; data: { symbol: string } };

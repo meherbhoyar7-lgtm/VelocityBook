@@ -18,6 +18,14 @@ import {
  * Within each price level, orders are queued FIFO by arrival time.
  *
  * The orderIndex Map<OrderId, Order> enables O(1) lookups and cancellations.
+ *
+ * Supported order types on the book:
+ *  - LIMIT / MARKET     — standard matching
+ *  - ICEBERG            — only displayQty rests on the book; hiddenQty replenishes
+ *                         atomically with refreshed FIFO priority at the price level
+ *  - FILL_OR_KILL (FOK) — pre-walk validates 100% fill; zero partial fills on rejection
+ *
+ * Stop-Loss and Trailing-Stop orders are managed by TriggerRegistry (off-book).
  */
 export class OrderBook {
   public readonly symbol: string;
@@ -41,20 +49,57 @@ export class OrderBook {
 
   /**
    * Add an order to the book. Returns any resulting trades.
-   * LIMIT orders match against the opposite side if crossing the spread,
-   * then rest the unfilled remainder on the book.
-   * MARKET orders sweep the opposite side until filled or liquidity exhausted.
+   *
+   * Routing by order type:
+   *  LIMIT        → match opposite side, then rest remainder on book
+   *  MARKET       → sweep opposite side until filled or exhausted
+   *  ICEBERG      → insert only displayQty on the book (hiddenQty stays off-book)
+   *  FILL_OR_KILL → pre-walk validates 100% fill; atomic reject if insufficient
+   *
+   * Stop-Loss / Trailing-Stop are NOT handled here — use TriggerRegistry.
    */
   public addOrder(order: Order): TradeExecution[] {
     const trades: TradeExecution[] = [];
 
-    if (order.type === OrderType.MARKET) {
-      this.matchMarketOrder(order, trades);
-    } else {
-      this.matchLimitOrder(order, trades);
+    switch (order.type) {
+      // ── Fill-or-Kill: reject immediately if not enough liquidity ─
+      case OrderType.FILL_OR_KILL: {
+        if (!this.canFillEntirely(order)) {
+          order.status = OrderStatus.CANCELLED;
+          return trades; // Zero partial fills — book untouched
+        }
+        // Sufficient liquidity → execute as immediate market sweep
+        this.matchMarketOrder(order, trades);
+        order.status = order.filledQuantity.eq(order.quantity)
+          ? OrderStatus.FILLED
+          : OrderStatus.CANCELLED;
+        return trades;
+      }
+
+      // ── Iceberg: insert visible slice only ──────────────────────
+      case OrderType.ICEBERG: {
+        this.initIcebergDefaults(order);
+        // Set the order's quantity to the visible slice for book depth
+        const sliceQty = Decimal.min(order.displayQty!, order.hiddenQty!);
+        order.quantity = sliceQty;
+        order.hiddenQty = order.hiddenQty!.minus(sliceQty);
+        order.status = OrderStatus.OPEN;
+        this.insertOrder(order);
+        return trades;
+      }
+
+      // ── Standard LIMIT / MARKET (+ triggered stop orders promoted to MARKET) ─
+      default: {
+        if (order.type === OrderType.MARKET) {
+          this.matchMarketOrder(order, trades);
+        } else {
+          this.matchLimitOrder(order, trades);
+        }
+        break;
+      }
     }
 
-    // If LIMIT order has remaining quantity, rest it on the book
+    // Rest unfilled LIMIT quantity on the book
     if (
       order.type === OrderType.LIMIT &&
       order.status !== OrderStatus.FILLED &&
@@ -76,6 +121,8 @@ export class OrderBook {
     return trades;
   }
 
+  // ─── Order Cancellation ────────────────────────────────────────
+
   /**
    * Cancel an order by ID. Returns the cancelled order or null if not found.
    */
@@ -86,13 +133,10 @@ export class OrderBook {
     const { order, side } = entry;
     const levels = side === Side.BUY ? this.bids : this.asks;
 
-    // Find the price level
     const levelIdx = this.findLevelIndex(levels, order.price, side);
     if (levelIdx === -1) return null;
 
     const level = levels[levelIdx];
-
-    // Remove order from the FIFO queue
     const orderIdx = level.orders.findIndex((o) => o.id === orderId);
     if (orderIdx === -1) return null;
 
@@ -100,35 +144,25 @@ export class OrderBook {
     const remainingQty = order.quantity.minus(order.filledQuantity);
     level.totalQuantity = level.totalQuantity.minus(remainingQty);
 
-    // If level is empty, remove it
     if (level.orders.length === 0) {
       levels.splice(levelIdx, 1);
     }
 
-    // Clean up index
     this.orderIndex.delete(orderId);
     order.status = OrderStatus.CANCELLED;
-
     return order;
   }
 
-  /**
-   * Get the best (highest) bid price, or null if empty.
-   */
+  // ─── Queries ─────────────────────────────────────────────────────
+
   public getBestBid(): Decimal | null {
     return this.bids.length > 0 ? this.bids[0].price : null;
   }
 
-  /**
-   * Get the best (lowest) ask price, or null if empty.
-   */
   public getBestAsk(): Decimal | null {
     return this.asks.length > 0 ? this.asks[0].price : null;
   }
 
-  /**
-   * Get the spread (best ask - best bid), or null if either side is empty.
-   */
   public getSpread(): Decimal | null {
     const bestBid = this.getBestBid();
     const bestAsk = this.getBestAsk();
@@ -136,9 +170,6 @@ export class OrderBook {
     return bestAsk.minus(bestBid);
   }
 
-  /**
-   * Get the mid-market price, or null if either side is empty.
-   */
   public getMidPrice(): Decimal | null {
     const bestBid = this.getBestBid();
     const bestAsk = this.getBestAsk();
@@ -146,23 +177,14 @@ export class OrderBook {
     return bestBid.plus(bestAsk).div(2);
   }
 
-  /**
-   * Check if a specific order exists on the book.
-   */
   public hasOrder(orderId: string): boolean {
     return this.orderIndex.has(orderId);
   }
 
-  /**
-   * Get the total number of resting orders on both sides.
-   */
   public getOrderCount(): number {
     return this.orderIndex.size;
   }
 
-  /**
-   * Get a full L2 snapshot of the book (top N levels each side).
-   */
   public getSnapshot(depth: number = 25): OrderBookSnapshot {
     const bidSnap = this.getLevelSnapshots(this.bids, depth);
     const askSnap = this.getLevelSnapshots(this.asks, depth);
@@ -177,16 +199,10 @@ export class OrderBook {
     };
   }
 
-  /**
-   * Get raw bid levels (for testing / internal use).
-   */
   public getBidLevels(): ReadonlyArray<PriceLevel> {
     return this.bids;
   }
 
-  /**
-   * Get raw ask levels (for testing / internal use).
-   */
   public getAskLevels(): ReadonlyArray<PriceLevel> {
     return this.asks;
   }
@@ -207,7 +223,6 @@ export class OrderBook {
 
       if (remainingQty.lte(0)) break;
 
-      // Check if price crosses
       if (order.side === Side.BUY && bestLevel.price.gt(order.price)) break;
       if (order.side === Side.SELL && bestLevel.price.lt(order.price)) break;
 
@@ -222,7 +237,7 @@ export class OrderBook {
   /**
    * Match a MARKET order — sweep the opposite book until filled or empty.
    */
-  private matchMarketOrder(order: Order, trades: TradeExecution[]): void {
+  public matchMarketOrder(order: Order, trades: TradeExecution[]): void {
     const oppositeLevels = order.side === Side.BUY ? this.asks : this.bids;
 
     while (oppositeLevels.length > 0) {
@@ -241,6 +256,7 @@ export class OrderBook {
   /**
    * Execute matches at a single price level.
    * Walks the FIFO queue, filling against resting orders.
+   * Handles iceberg slice replenishment atomically on fill.
    */
   private matchAtLevel(
     incomingOrder: Order,
@@ -272,6 +288,37 @@ export class OrderBook {
         restingOrder.status = OrderStatus.FILLED;
         level.orders.shift(); // Remove from FIFO queue head
         this.orderIndex.delete(restingOrder.id);
+
+        // ── Iceberg replenishment ──
+        // If hidden quantity remains, atomically create a new visible slice
+        // and insert at the TAIL of this price level (refreshed FIFO priority)
+        if (
+          restingOrder.type === OrderType.ICEBERG &&
+          restingOrder.hiddenQty &&
+          restingOrder.hiddenQty.gt(0)
+        ) {
+          const sliceSize = restingOrder.displayQty || new Decimal(1);
+          const newSliceQty = Decimal.min(sliceSize, restingOrder.hiddenQty);
+          const remainingHidden = restingOrder.hiddenQty.minus(newSliceQty);
+
+          const iceSlice: Order = {
+            id: `${restingOrder.id}-ice-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            userId: restingOrder.userId,
+            symbol: restingOrder.symbol,
+            side: restingOrder.side,
+            type: OrderType.ICEBERG,
+            price: restingOrder.price,
+            quantity: newSliceQty,
+            filledQuantity: new Decimal(0),
+            status: OrderStatus.OPEN,
+            timestamp: Date.now(),
+            displayQty: sliceSize,
+            hiddenQty: remainingHidden,
+          };
+
+          // Insert at tail of price level (after all existing orders)
+          this.insertOrder(iceSlice);
+        }
       } else {
         restingOrder.status = OrderStatus.PARTIALLY_FILLED;
       }
@@ -291,30 +338,63 @@ export class OrderBook {
    */
   private insertOrder(order: Order): void {
     const levels = order.side === Side.BUY ? this.bids : this.asks;
-    const remainingQty = order.quantity.minus(order.filledQuantity);
+    const depthQty = order.quantity.minus(order.filledQuantity);
 
-    // Find or create the price level
     let levelIdx = this.findLevelIndex(levels, order.price, order.side);
 
     if (levelIdx !== -1 && levels[levelIdx].price.eq(order.price)) {
-      // Existing level — append to FIFO queue
+      // Existing level — append to FIFO queue (tail = refreshed priority)
       levels[levelIdx].orders.push(order);
-      levels[levelIdx].totalQuantity = levels[levelIdx].totalQuantity.plus(remainingQty);
+      levels[levelIdx].totalQuantity = levels[levelIdx].totalQuantity.plus(depthQty);
     } else {
       // New level — insert at correct sorted position
       const newLevel: PriceLevel = {
         price: order.price,
         orders: [order],
-        totalQuantity: remainingQty,
+        totalQuantity: depthQty,
       };
-
       const insertIdx = this.findInsertIndex(levels, order.price, order.side);
       levels.splice(insertIdx, 0, newLevel);
       levelIdx = insertIdx;
     }
 
-    // Register in the O(1) index
     this.orderIndex.set(order.id, { order, levelIndex: levelIdx, side: order.side });
+  }
+
+  // ─── Iceberg Helpers ─────────────────────────────────────────────
+
+  /**
+   * Initialize default iceberg fields if not already set.
+   * displayQty defaults to 10% of total quantity (minimum 1 unit).
+   * hiddenQty defaults to total quantity.
+   */
+  private initIcebergDefaults(order: Order): void {
+    if (order.hiddenQty === undefined) {
+      order.hiddenQty = order.quantity;
+    }
+    if (!order.displayQty || order.displayQty.lte(0)) {
+      const tenPercent = order.quantity.div(10);
+      order.displayQty = tenPercent.gte(1) ? tenPercent : new Decimal(1);
+    }
+  }
+
+  // ─── Fill-or-Kill Validation ─────────────────────────────────────
+
+  /**
+   * Pre-walk the opposite book to determine if the ENTIRE order quantity
+   * can be filled immediately. Does NOT mutate any state.
+   * This guarantees zero partial fills on rejection.
+   */
+  private canFillEntirely(order: Order): boolean {
+    const opposite = order.side === Side.BUY ? this.asks : this.bids;
+    let available = new Decimal(0);
+
+    for (const level of opposite) {
+      available = available.plus(level.totalQuantity);
+      if (available.gte(order.quantity)) return true;
+    }
+
+    return false;
   }
 
   // ─── Helpers ─────────────────────────────────────────────────────
@@ -325,7 +405,6 @@ export class OrderBook {
   private findLevelIndex(levels: PriceLevel[], price: Decimal, side: Side): number {
     for (let i = 0; i < levels.length; i++) {
       if (levels[i].price.eq(price)) return i;
-      // Early exit since levels are sorted
       if (side === Side.BUY && levels[i].price.lt(price)) return -1;
       if (side === Side.SELL && levels[i].price.gt(price)) return -1;
     }

@@ -1,9 +1,11 @@
-export function formatPrice(price: string | number, decimals: number = 2): string {
-  return Number(price).toLocaleString('en-IN', {
+export function formatPrice(price: string | number, decimals: number = 2, currency: string = 'INR'): string {
+  const locale = currency === 'USD' ? 'en-US' : 'en-IN';
+  return Number(price).toLocaleString(locale, {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   });
 }
+
 
 export function formatQuantity(qty: string | number, decimals: number = 4): string {
   return Number(qty).toLocaleString('en-US', {

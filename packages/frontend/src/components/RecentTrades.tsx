@@ -79,8 +79,9 @@ export default function RecentTrades() {
                 className="grid grid-cols-3 px-3 py-[3px] hover:bg-[#1E222D]/50 transition-colors"
               >
                 <span className={isBuy ? 'text-[#089981]' : 'text-[#F23645]'}>
-                  {formatPrice(t.price)}
+                  {formatPrice(t.price, 2, quoteCurrency)}
                 </span>
+
                 <span className="text-right text-[#D1D4DC]">
                   {formatQuantity(t.quantity)}
                 </span>

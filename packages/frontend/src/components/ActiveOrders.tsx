@@ -118,8 +118,15 @@ export default function ActiveOrders() {
                       </span>
                     </td>
                     <td className="py-2 px-3 text-right text-[#D1D4DC]">
-                      {order.price ? `$${formatPrice(order.price)}` : 'Market'}
+                      {order.price
+                        ? `${order.symbol.includes('INR') ? '₹' : '$'}${formatPrice(
+                            order.price,
+                            2,
+                            order.symbol.includes('INR') ? 'INR' : 'USD'
+                          )}`
+                        : 'Market'}
                     </td>
+
                     <td className="py-2 px-3 text-right text-[#D1D4DC]">
                       {formatQuantity(order.quantity)}
                     </td>

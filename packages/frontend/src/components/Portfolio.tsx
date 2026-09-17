@@ -115,17 +115,18 @@ export default function Portfolio() {
                       {acc.currency}
                     </td>
                     <td className="py-2 px-3 text-right text-[#089981]">
-                      {acc.currency === 'INR' ? `₹${formatPrice(acc.available_balance)}` : acc.currency === 'USD' ? `$${formatPrice(acc.available_balance)}` : formatQuantity(acc.available_balance)}
+                      {acc.currency === 'INR' ? `₹${formatPrice(acc.available_balance, 2, 'INR')}` : acc.currency === 'USD' ? `$${formatPrice(acc.available_balance, 2, 'USD')}` : formatQuantity(acc.available_balance)}
                     </td>
                     <td className="py-2 px-3 text-right text-[#F23645]">
-                      {acc.currency === 'INR' ? `₹${formatPrice(acc.locked_balance)}` : acc.currency === 'USD' ? `$${formatPrice(acc.locked_balance)}` : formatQuantity(acc.locked_balance)}
+                      {acc.currency === 'INR' ? `₹${formatPrice(acc.locked_balance, 2, 'INR')}` : acc.currency === 'USD' ? `$${formatPrice(acc.locked_balance, 2, 'USD')}` : formatQuantity(acc.locked_balance)}
                     </td>
                     <td className="py-2 px-3 text-right text-[#D1D4DC] font-medium">
-                      {acc.currency === 'INR' ? `₹${formatPrice(acc.total_balance)}` : acc.currency === 'USD' ? `$${formatPrice(acc.total_balance)}` : formatQuantity(acc.total_balance)}
+                      {acc.currency === 'INR' ? `₹${formatPrice(acc.total_balance, 2, 'INR')}` : acc.currency === 'USD' ? `$${formatPrice(acc.total_balance, 2, 'USD')}` : formatQuantity(acc.total_balance)}
                     </td>
                     <td className="py-2 px-3 text-right text-[#787B86]">
-                      ₹{formatPrice(estValue)}
+                      ₹{formatPrice(estValue, 2, 'INR')}
                     </td>
+
                     <td className="py-2 px-3 text-center">
                       <button
                         onClick={() => handleDeposit(acc.currency, acc.currency === 'INR' ? '100000' : acc.currency === 'USD' ? '10000' : '1')}

@@ -76,7 +76,7 @@ export default function OrderBook({ onPriceClick }: OrderBookProps) {
                 className="absolute right-0 top-0 bottom-0 bg-[#F23645]/8"
                 style={{ width: `${depthPct}%` }}
               />
-              <span className="text-[#F23645] relative z-10">{formatPrice(level.price)}</span>
+              <span className="text-[#F23645] relative z-10">{formatPrice(level.price, 2, quoteCurrency)}</span>
               <span className="text-right text-[#D1D4DC] relative z-10">{formatQuantity(level.size)}</span>
               <span className="text-right text-[#787B86] relative z-10">{formatQuantity(level.total)}</span>
             </div>
@@ -87,10 +87,10 @@ export default function OrderBook({ onPriceClick }: OrderBookProps) {
       {/* Spread */}
       <div className="px-3 py-2 border-y border-[#1E222D] bg-[#0B0E14] flex items-center justify-between">
         <span className="text-[#D1D4DC] font-semibold text-sm">
-          {midPrice ? `${currencySymbol}${formatPrice(midPrice)}` : '—'}
+          {midPrice ? `${currencySymbol}${formatPrice(midPrice, 2, quoteCurrency)}` : '—'}
         </span>
         <span className="text-[#787B86] text-[10px]">
-          Spread: {spread ? `${currencySymbol}${formatPrice(spread)}` : '—'}
+          Spread: {spread ? `${currencySymbol}${formatPrice(spread, 2, quoteCurrency)}` : '—'}
         </span>
       </div>
 
@@ -112,7 +112,8 @@ export default function OrderBook({ onPriceClick }: OrderBookProps) {
                 className="absolute right-0 top-0 bottom-0 bg-[#089981]/8"
                 style={{ width: `${depthPct}%` }}
               />
-              <span className="text-[#089981] relative z-10">{formatPrice(level.price)}</span>
+              <span className="text-[#089981] relative z-10">{formatPrice(level.price, 2, quoteCurrency)}</span>
+
               <span className="text-right text-[#D1D4DC] relative z-10">{formatQuantity(level.size)}</span>
               <span className="text-right text-[#787B86] relative z-10">{formatQuantity(level.total)}</span>
             </div>

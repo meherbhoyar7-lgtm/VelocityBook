@@ -83,7 +83,9 @@ export default function TradeHistory() {
             ) : (
               trades.map((trade) => {
                 const total = (Number(trade.price) * Number(trade.quantity)).toFixed(2);
-                const sym = trade.symbol?.includes('USD') ? '$' : '₹';
+                const isUSD = trade.symbol?.includes('USD');
+                const sym = isUSD ? '$' : '₹';
+                const cur = isUSD ? 'USD' : 'INR';
                 return (
                   <tr key={trade.id} className="hover:bg-[#1E222D]/40 transition-colors">
                     <td className="py-2 px-3 text-[#787B86]">
@@ -96,16 +98,17 @@ export default function TradeHistory() {
                       </span>
                     </td>
                     <td className="py-2 px-3 text-right text-[#D1D4DC]">
-                      {sym}{formatPrice(trade.price)}
+                      {sym}{formatPrice(trade.price, 2, cur)}
                     </td>
                     <td className="py-2 px-3 text-right text-[#D1D4DC]">
                       {formatQuantity(trade.quantity)}
                     </td>
                     <td className="py-2 px-3 text-right text-[#787B86]">
-                      {sym}{formatPrice(total)}
+                      {sym}{formatPrice(total, 2, cur)}
                     </td>
                   </tr>
                 );
+
               })
             )}
           </tbody>

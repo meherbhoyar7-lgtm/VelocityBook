@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useCallback } from 'react';
-import { Wifi, WifiOff, ChevronDown, DollarSign, History } from 'lucide-react';
+import { Wifi, WifiOff, ChevronDown, History, PlusCircle } from 'lucide-react';
 import { useUserStore } from '@/stores/useUserStore';
 import { useTradeStore } from '@/stores/useTradeStore';
 import { useOrderBookStore } from '@/stores/useOrderBookStore';
@@ -51,9 +51,14 @@ export default function Header({ onToggleReplay, isReplayOpen }: HeaderProps = {
     }
   }, [demoUsers, userId, handleSwitchUser]);
 
+  const isINR = selectedSymbol.includes('INR');
+  const quoteCurrency = isINR ? 'INR' : 'USD';
+  const currencySymbol = isINR ? '₹' : '$';
+
   const handleDeposit = async () => {
     try {
-      await api.depositFaucet('INR', '100000');
+      const amount = isINR ? '100000' : '10000';
+      await api.depositFaucet(quoteCurrency, amount);
       const portfolio = await api.getPortfolio();
       setAccounts(portfolio.accounts);
     } catch (err) {
@@ -61,7 +66,7 @@ export default function Header({ onToggleReplay, isReplayOpen }: HeaderProps = {
     }
   };
 
-  const inrAccount = accounts.find((a) => a.currency === 'INR') || accounts.find((a) => a.currency === 'USD');
+  const activeAccount = accounts.find((a) => a.currency === quoteCurrency) || accounts[0];
 
   return (
     <header className="h-14 border-b border-[#1E222D] bg-[#131722] flex items-center px-4 gap-6 text-sm">
@@ -85,19 +90,23 @@ export default function Header({ onToggleReplay, isReplayOpen }: HeaderProps = {
         <div>
           <span className="text-[#787B86] text-xs mr-1">Last</span>
           <span className="text-[#D1D4DC] font-semibold text-base">
-            {lastPrice ? (selectedSymbol.includes('INR') ? `₹${formatPrice(lastPrice)}` : `$${formatPrice(lastPrice)}`) : midPrice ? (selectedSymbol.includes('INR') ? `₹${formatPrice(midPrice)}` : `$${formatPrice(midPrice)}`) : '—'}
+            {lastPrice
+              ? `${currencySymbol}${formatPrice(lastPrice, 2, quoteCurrency)}`
+              : midPrice
+              ? `${currencySymbol}${formatPrice(midPrice, 2, quoteCurrency)}`
+              : '—'}
           </span>
         </div>
         <div>
           <span className="text-[#787B86] text-xs mr-1">Spread</span>
           <span className="text-[#D1D4DC]">
-            {spread ? (selectedSymbol.includes('INR') ? `₹${formatPrice(spread)}` : `$${formatPrice(spread)}`) : '—'}
+            {spread ? `${currencySymbol}${formatPrice(spread, 2, quoteCurrency)}` : '—'}
           </span>
         </div>
         <div>
           <span className="text-[#787B86] text-xs mr-1">Mid</span>
           <span className="text-[#D1D4DC]">
-            {midPrice ? (selectedSymbol.includes('INR') ? `₹${formatPrice(midPrice)}` : `$${formatPrice(midPrice)}`) : '—'}
+            {midPrice ? `${currencySymbol}${formatPrice(midPrice, 2, quoteCurrency)}` : '—'}
           </span>
         </div>
       </div>
@@ -141,20 +150,23 @@ export default function Header({ onToggleReplay, isReplayOpen }: HeaderProps = {
       {/* Deposit Button */}
       <button
         onClick={handleDeposit}
-        className="flex items-center gap-1 px-3 py-1.5 bg-[#2962FF]/10 border border-[#2962FF]/30 text-[#2962FF] rounded hover:bg-[#2962FF]/20 transition-colors text-xs"
+        className="flex items-center gap-1 px-3 py-1.5 bg-[#2962FF]/10 border border-[#2962FF]/30 text-[#2962FF] rounded hover:bg-[#2962FF]/20 transition-colors text-xs font-medium"
       >
-        <DollarSign size={12} />
-        +₹1 Lakh
+        <PlusCircle size={12} />
+        {isINR ? '+₹1 Lakh' : '+$10,000'}
       </button>
 
-
       {/* Balance */}
-      {inrAccount && (
+      {activeAccount && (
         <div className="font-mono text-xs">
-          <span className="text-[#787B86]">{inrAccount.currency}: </span>
-          <span className="text-[#D1D4DC]">₹{formatPrice(inrAccount.available_balance)}</span>
+          <span className="text-[#787B86]">{activeAccount.currency}: </span>
+          <span className="text-[#D1D4DC]">
+            {activeAccount.currency === 'INR' ? '₹' : activeAccount.currency === 'USD' ? '$' : ''}
+            {formatPrice(activeAccount.available_balance, 2, activeAccount.currency)}
+          </span>
         </div>
       )}
+
 
       {/* User Switcher */}
       <div className="relative">

@@ -16,7 +16,8 @@ interface PageProps {
  */
 export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {
   const params = await searchParams;
-  const symbol = params?.symbol || 'BTC-USD';
+  const symbol = params?.symbol || 'BTC-INR';
+
 
   return {
     title: `${symbol} Order Book & Trading Terminal | VelocityBook`,
@@ -83,7 +84,8 @@ async function getInitialData(symbol: string): Promise<{
  */
 export default async function TradingTerminalPage({ searchParams }: PageProps) {
   const params = await searchParams;
-  const symbol = params?.symbol || 'BTC-USD';
+  const symbol = params?.symbol || 'BTC-INR';
+
 
   const { orderBook, trades, symbols } = await getInitialData(symbol);
 

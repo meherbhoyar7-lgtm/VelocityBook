@@ -24,8 +24,9 @@ interface TradingTerminalClientProps {
 export default function TradingTerminalClient({
   initialOrderBook,
   initialTrades,
-  initialSymbol = 'BTC-USD',
+  initialSymbol = 'BTC-INR',
 }: TradingTerminalClientProps) {
+
   // Hydrate Zustand stores once on mount with SSR data
   const [initialized] = useState(() => {
     if (initialOrderBook) {

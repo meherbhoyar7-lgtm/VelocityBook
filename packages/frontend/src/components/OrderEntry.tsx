@@ -188,17 +188,18 @@ export default function OrderEntry({ initialPrice }: OrderEntryProps) {
           <span className="text-[#787B86]">Available</span>
           <span className="text-[#D1D4DC]">
             {side === 'BUY'
-              ? `${formatPrice(availableBalance)} ${quoteCurrency}`
+              ? `${formatPrice(availableBalance, 2, quoteCurrency)} ${quoteCurrency}`
               : `${Number(availableBalance).toFixed(8)} ${baseCurrency}`}
           </span>
         </div>
         {orderType === 'LIMIT' && estimatedTotal > 0 && (
           <div className="flex justify-between">
             <span className="text-[#787B86]">Total</span>
-            <span className="text-[#D1D4DC]">{quoteCurrency === 'INR' ? '₹' : '$'}{formatPrice(estimatedTotal)}</span>
+            <span className="text-[#D1D4DC]">{quoteCurrency === 'INR' ? '₹' : '$'}{formatPrice(estimatedTotal, 2, quoteCurrency)}</span>
           </div>
         )}
       </div>
+
 
       {/* Submit Button */}
       <button

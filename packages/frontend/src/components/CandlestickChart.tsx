@@ -307,28 +307,31 @@ export default function CandlestickChart() {
         {activeDisplay && (
           <div className="hidden lg:flex items-center gap-3 font-mono text-[11px]">
             {(() => {
-              const curSym = selectedSymbol.includes('INR') ? '₹' : '$';
+              const isINR = selectedSymbol.includes('INR');
+              const curSym = isINR ? '₹' : '$';
+              const cur = isINR ? 'INR' : 'USD';
               return (
                 <>
                   <div>
                     <span className="text-[#787B86]">O: </span>
-                    <span className={isUp ? 'text-[#089981]' : 'text-[#F23645]'}>{curSym}{formatPrice(activeDisplay.open)}</span>
+                    <span className={isUp ? 'text-[#089981]' : 'text-[#F23645]'}>{curSym}{formatPrice(activeDisplay.open, 2, cur)}</span>
                   </div>
                   <div>
                     <span className="text-[#787B86]">H: </span>
-                    <span className={isUp ? 'text-[#089981]' : 'text-[#F23645]'}>{curSym}{formatPrice(activeDisplay.high)}</span>
+                    <span className={isUp ? 'text-[#089981]' : 'text-[#F23645]'}>{curSym}{formatPrice(activeDisplay.high, 2, cur)}</span>
                   </div>
                   <div>
                     <span className="text-[#787B86]">L: </span>
-                    <span className={isUp ? 'text-[#089981]' : 'text-[#F23645]'}>{curSym}{formatPrice(activeDisplay.low)}</span>
+                    <span className={isUp ? 'text-[#089981]' : 'text-[#F23645]'}>{curSym}{formatPrice(activeDisplay.low, 2, cur)}</span>
                   </div>
                   <div>
                     <span className="text-[#787B86]">C: </span>
-                    <span className={isUp ? 'text-[#089981]' : 'text-[#F23645]'}>{curSym}{formatPrice(activeDisplay.close)}</span>
+                    <span className={isUp ? 'text-[#089981]' : 'text-[#F23645]'}>{curSym}{formatPrice(activeDisplay.close, 2, cur)}</span>
                   </div>
                 </>
               );
             })()}
+
             <div>
               <span className="text-[#787B86]">Chg: </span>
               <span className={isUp ? 'text-[#089981]' : 'text-[#F23645]'}>

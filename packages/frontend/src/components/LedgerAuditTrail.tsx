@@ -11,25 +11,39 @@ export default function LedgerAuditTrail() {
   const userId = useUserStore((s) => s.userId);
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [fetchTrigger, setFetchTrigger] = useState(0);
 
-  const fetchLedger = useCallback(async () => {
-    if (!userId) return;
-    setLoading(true);
-    try {
-      const res = await api.getLedger();
-      setEntries(res.entries || []);
-    } catch (err) {
-      console.error('[LedgerAuditTrail] Error fetching:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [userId]);
-
+  // Fetch on mount, when userId changes, or when manually triggered
   useEffect(() => {
-    fetchLedger();
-    const interval = setInterval(fetchLedger, 5000);
+    if (!userId) return;
+    let cancelled = false;
+
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await api.getLedger();
+        if (!cancelled) setEntries(res.entries || []);
+      } catch (err) {
+        console.error('[LedgerAuditTrail] Error fetching:', err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [userId, fetchTrigger]);
+
+  // Poll every 5 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setFetchTrigger((c) => c + 1);
+    }, 5000);
     return () => clearInterval(interval);
-  }, [fetchLedger]);
+  }, []);
+
+  const handleRefresh = useCallback(() => {
+    setFetchTrigger((c) => c + 1);
+  }, []);
 
   return (
     <div className="flex flex-col h-full bg-[#131722] text-xs font-mono">
@@ -49,7 +63,7 @@ export default function LedgerAuditTrail() {
           </div>
 
           <button
-            onClick={fetchLedger}
+            onClick={handleRefresh}
             disabled={loading}
             className="text-[#787B86] hover:text-[#D1D4DC] p-1 rounded"
             title="Refresh Ledger"

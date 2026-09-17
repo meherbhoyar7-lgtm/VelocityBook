@@ -1,6 +1,7 @@
 import { WebSocketServer as WSServer, WebSocket } from 'ws';
 import { Server } from 'http';
 import { redisPublisher } from './RedisPublisher';
+import { MetricService } from '../services/MetricService';
 
 interface ConnectedClient {
   ws: WebSocket;
@@ -39,6 +40,7 @@ export class VelocityWebSocketServer {
       };
 
       this.clients.set(clientId, client);
+      MetricService.activeWsClients?.set(this.clients.size);
       console.log(`[WS] Client connected: ${clientId} (total: ${this.clients.size})`);
 
       ws.on('message', (raw: Buffer) => {
@@ -52,12 +54,14 @@ export class VelocityWebSocketServer {
 
       ws.on('close', () => {
         this.clients.delete(clientId);
+        MetricService.activeWsClients?.set(this.clients.size);
         console.log(`[WS] Client disconnected: ${clientId} (total: ${this.clients.size})`);
       });
 
       ws.on('error', (err) => {
         console.error(`[WS] Client error ${clientId}:`, err.message);
         this.clients.delete(clientId);
+        MetricService.activeWsClients?.set(this.clients.size);
       });
 
       // Send welcome message

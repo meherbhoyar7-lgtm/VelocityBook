@@ -6,15 +6,21 @@ import { EngineClusterRouter } from './services/EngineClusterRouter';
 import { VelocityWebSocketServer } from './websocket/WebSocketServer';
 import { redisPublisher } from './websocket/RedisPublisher';
 import { MarketMakerBot } from './services/MarketMakerBot';
+import { MetricService } from './services/MetricService';
 import authRoutes, { JWT_SECRET } from './routes/auth';
 import ordersRoutes, { setEngineRef } from './routes/orders';
 import portfolioRoutes from './routes/portfolio';
 import tradesRoutes from './routes/trades';
 import faucetRoutes from './routes/faucet';
+import replayRoutes from './routes/replay';
+import reportsRoutes from './routes/reports';
+import { ReplayService } from './services/ReplayService';
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 
 // ─── Initialize Core Systems ──────────────────────────────────────
+
+MetricService.initialize();
 
 const app = express();
 const server = http.createServer(app);
@@ -57,6 +63,7 @@ app.use(authMiddleware);
 // ─── Inject Engine References ──────────────────────────────────────
 
 setEngineRef(engine, wsServer, redisPublisher);
+ReplayService.setWebSocketServer(wsServer);
 
 // ─── Routes ────────────────────────────────────────────────────────
 
@@ -65,6 +72,8 @@ app.use('/api/orders', ordersRoutes);
 app.use('/api/portfolio', portfolioRoutes);
 app.use('/api/trades', tradesRoutes);
 app.use('/api/faucet', faucetRoutes);
+app.use('/api/replay', replayRoutes);
+app.use('/api/reports', reportsRoutes);
 
 // GET /api/orderbook?symbol=BTC-USD
 app.get('/api/orderbook', (req, res) => {
@@ -105,6 +114,16 @@ app.get('/api/health', (_req, res) => {
     },
     timestamp: new Date().toISOString(),
   });
+});
+
+// Prometheus metrics endpoint for Grafana/Prometheus scraping
+app.get('/metrics', async (_req, res) => {
+  try {
+    res.setHeader('Content-Type', MetricService.getContentType());
+    res.send(await MetricService.getMetrics());
+  } catch (err: any) {
+    res.status(500).send(err.message);
+  }
 });
 
 // ─── Start Server ──────────────────────────────────────────────────

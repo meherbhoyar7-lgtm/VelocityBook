@@ -13,25 +13,39 @@ export default function ActiveOrders() {
   const [orders, setOrders] = useState<OpenOrder[]>([]);
   const [loading, setLoading] = useState(false);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [fetchTrigger, setFetchTrigger] = useState(0);
 
-  const fetchOrders = useCallback(async () => {
-    if (!userId) return;
-    setLoading(true);
-    try {
-      const res = await api.getOpenOrders();
-      setOrders(res.orders || []);
-    } catch (err) {
-      console.error('[ActiveOrders] Error fetching:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [userId]);
-
+  // Fetch on mount, when userId changes, or when manually triggered
   useEffect(() => {
-    fetchOrders();
-    const interval = setInterval(fetchOrders, 3000);
+    if (!userId) return;
+    let cancelled = false;
+
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await api.getOpenOrders();
+        if (!cancelled) setOrders(res.orders || []);
+      } catch (err) {
+        console.error('[ActiveOrders] Error fetching:', err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [userId, fetchTrigger]);
+
+  // Poll every 3 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setFetchTrigger((c) => c + 1);
+    }, 3000);
     return () => clearInterval(interval);
-  }, [fetchOrders]);
+  }, []);
+
+  const handleRefresh = useCallback(() => {
+    setFetchTrigger((c) => c + 1);
+  }, []);
 
   const handleCancel = async (id: string) => {
     setCancellingId(id);
@@ -41,8 +55,8 @@ export default function ActiveOrders() {
       // Refresh portfolio balances
       const portfolio = await api.getPortfolio();
       setAccounts(portfolio.accounts);
-    } catch (err: any) {
-      console.error('[ActiveOrders] Cancel failed:', err.message);
+    } catch (err: unknown) {
+      console.error('[ActiveOrders] Cancel failed:', err instanceof Error ? err.message : err);
     } finally {
       setCancellingId(null);
     }
@@ -55,7 +69,7 @@ export default function ActiveOrders() {
           Open Orders ({orders.length})
         </span>
         <button
-          onClick={fetchOrders}
+          onClick={handleRefresh}
           disabled={loading}
           className="text-[#787B86] hover:text-[#D1D4DC] p-1 rounded"
           title="Refresh"

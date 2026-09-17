@@ -5,6 +5,7 @@
  * with realistic spread, price distribution, and liquidity depth.
  */
 
+export {};
 const API_URL = process.env.API_URL || 'http://localhost:3001';
 
 interface SeedConfig {
@@ -17,6 +18,22 @@ interface SeedConfig {
 }
 
 const configs: SeedConfig[] = [
+  {
+    symbol: 'BTC-INR',
+    midPrice: 5400000.0,
+    spreadBps: 10, // 0.1% spread
+    levels: 20,
+    minQty: 0.05,
+    maxQty: 1.5,
+  },
+  {
+    symbol: 'ETH-INR',
+    midPrice: 290000.0,
+    spreadBps: 15, // 0.15% spread
+    levels: 20,
+    minQty: 0.5,
+    maxQty: 15.0,
+  },
   {
     symbol: 'BTC-USD',
     midPrice: 64250.0,
@@ -34,6 +51,7 @@ const configs: SeedConfig[] = [
     maxQty: 15.0,
   },
 ];
+
 
 async function seedMarket() {
   console.log('\n' + '═'.repeat(60));
@@ -130,8 +148,9 @@ async function seedMarket() {
     console.log('\n' + '═'.repeat(60));
     console.log('  ✔ MARKET SEEDING COMPLETE');
     console.log('═'.repeat(60) + '\n');
-  } catch (error: any) {
-    console.error('\n❌ Seeding Error:', error.message);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('\n❌ Seeding Error:', message);
     console.log('Tip: Ensure the backend is started via `docker-compose up` or `npm run dev:backend`\n');
   }
 }

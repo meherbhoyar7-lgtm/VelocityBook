@@ -13,8 +13,11 @@
     "test": "cd packages/engine && npx vitest run",
     "stress-test": "npx ts-node scripts/stress-test.ts",
     "scale-test": "npx ts-node scripts/scale-test.ts",
-    "benchmark:serialization": "npx ts-node scripts/benchmark-serialization.ts"
+    "benchmark:serialization": "npx ts-node scripts/benchmark-serialization.ts",
+    "seed": "npx ts-node scripts/seed-market.ts",
+    "trade-replay": "npx ts-node scripts/trade-replay.ts"
   },
+
   "engines": {
     "node": ">=18.0.0"
   }

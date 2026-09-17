@@ -22,6 +22,9 @@ export function useWebSocket() {
   const setOrderBook = useOrderBookStore((s) => s.setOrderBook);
   const addTrade = useTradeStore((s) => s.addTrade);
 
+  // Store connect fn in a ref so the onclose handler always has the latest version
+  const connectRef = useRef<() => void>(() => {});
+
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
@@ -92,7 +95,7 @@ export function useWebSocket() {
       setConnected(false);
       // Auto-reconnect after 2 seconds
       reconnectTimeoutRef.current = setTimeout(() => {
-        connect();
+        connectRef.current();
       }, 2000);
     };
 
@@ -100,6 +103,11 @@ export function useWebSocket() {
       ws.close();
     };
   }, [userId, selectedSymbol, setConnected, setOrderBook, addTrade]);
+
+  // Keep connectRef in sync with the latest connect function
+  useEffect(() => {
+    connectRef.current = connect;
+  });
 
   useEffect(() => {
     connect();

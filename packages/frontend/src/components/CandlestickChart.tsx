@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { createChart, CandlestickSeries, HistogramSeries, ColorType, IChartApi, ISeriesApi } from 'lightweight-charts';
 import { useUserStore } from '@/stores/useUserStore';
 import { useTradeStore } from '@/stores/useTradeStore';
 import { api } from '@/lib/api';
 import { formatPrice } from '@/lib/utils';
 import { BarChart3, Maximize2 } from 'lucide-react';
+import { CandleData } from '@/types';
 
 interface OHLCV {
   time: number;
@@ -29,6 +30,13 @@ export default function CandlestickChart() {
   const [resolution, setResolution] = useState<'1m' | '5m' | '15m' | '1h' | '1d'>('1m');
   const [hoveredData, setHoveredData] = useState<OHLCV | null>(null);
   const [currentBar, setCurrentBar] = useState<OHLCV | null>(null);
+
+  // Use a ref for currentBar in the real-time update effect to avoid re-running
+  // the effect every time currentBar changes (which would cause cascading renders).
+  const currentBarRef = useRef<OHLCV | null>(null);
+  useEffect(() => {
+    currentBarRef.current = currentBar;
+  });
 
   // Generate fallback historical candles if backend has limited history
   const generateFallbackData = useCallback((basePrice: number, count = 80): OHLCV[] => {
@@ -115,24 +123,27 @@ export default function CandlestickChart() {
       ? (isINR ? 4500000 : 64000)
       : (isINR ? 275000 : 3400);
 
+    const mapCandlesToOHLCV = (candles: CandleData[]): OHLCV[] =>
+      candles.map((c) => ({
+        time: Math.floor(new Date(c.time).getTime() / 1000),
+        open: Number(c.open),
+        high: Number(c.high),
+        low: Number(c.low),
+        close: Number(c.close),
+        volume: Number(c.volume || 0),
+      }));
+
     api.getCandles(selectedSymbol, resolution)
       .then((res) => {
-        let bars: OHLCV[] = [];
+        let bars: OHLCV[];
         if (res.candles && res.candles.length > 5) {
-          bars = res.candles.map((c: any) => ({
-            time: Math.floor(new Date(c.time).getTime() / 1000),
-            open: Number(c.open),
-            high: Number(c.high),
-            low: Number(c.low),
-            close: Number(c.close),
-            volume: Number(c.volume || 0),
-          }));
+          bars = mapCandlesToOHLCV(res.candles);
         } else {
           bars = generateFallbackData(basePrice, 100);
         }
 
         const candleData = bars.map((b) => ({
-          time: b.time as any,
+          time: b.time as Parameters<typeof candleSeries.setData>[0][number]['time'],
           open: b.open,
           high: b.high,
           low: b.low,
@@ -140,7 +151,7 @@ export default function CandlestickChart() {
         }));
 
         const volumeData = bars.map((b) => ({
-          time: b.time as any,
+          time: b.time as Parameters<typeof volumeSeries.setData>[0][number]['time'],
           value: b.volume,
           color: b.close >= b.open ? 'rgba(8, 153, 129, 0.4)' : 'rgba(242, 54, 69, 0.4)',
         }));
@@ -154,8 +165,15 @@ export default function CandlestickChart() {
       })
       .catch(() => {
         const bars = generateFallbackData(basePrice, 100);
-        candleSeries.setData(bars.map((b) => ({ time: b.time as any, open: b.open, high: b.high, low: b.low, close: b.close })));
-        volumeSeries.setData(bars.map((b) => ({ time: b.time as any, value: b.volume, color: b.close >= b.open ? 'rgba(8, 153, 129, 0.4)' : 'rgba(242, 54, 69, 0.4)' })));
+        candleSeries.setData(bars.map((b) => ({
+          time: b.time as Parameters<typeof candleSeries.setData>[0][number]['time'],
+          open: b.open, high: b.high, low: b.low, close: b.close,
+        })));
+        volumeSeries.setData(bars.map((b) => ({
+          time: b.time as Parameters<typeof volumeSeries.setData>[0][number]['time'],
+          value: b.volume,
+          color: b.close >= b.open ? 'rgba(8, 153, 129, 0.4)' : 'rgba(242, 54, 69, 0.4)',
+        })));
         const lastBar = bars[bars.length - 1];
         if (lastBar) setCurrentBar(lastBar);
         chart.timeScale().fitContent();
@@ -167,8 +185,8 @@ export default function CandlestickChart() {
         setHoveredData(null);
         return;
       }
-      const data = param.seriesData.get(candleSeries) as any;
-      const volData = param.seriesData.get(volumeSeries) as any;
+      const data = param.seriesData.get(candleSeries) as Record<string, number> | undefined;
+      const volData = param.seriesData.get(volumeSeries) as Record<string, number> | undefined;
       if (data) {
         setHoveredData({
           time: Number(param.time),
@@ -200,8 +218,12 @@ export default function CandlestickChart() {
   }, [selectedSymbol, resolution, generateFallbackData]);
 
   // Update latest bar on real-time price tick
+  // Use currentBarRef to avoid including currentBar in deps (which would cause cascading renders)
   useEffect(() => {
-    if (!lastPrice || !candleSeriesRef.current || !currentBar) return;
+    if (!lastPrice || !candleSeriesRef.current) return;
+    const bar = currentBarRef.current;
+    if (!bar) return;
+
     const priceNum = parseFloat(lastPrice);
     if (isNaN(priceNum)) return;
 
@@ -210,13 +232,13 @@ export default function CandlestickChart() {
     const currentBarTime = Math.floor(now / intervalSec) * intervalSec;
 
     let updatedBar: OHLCV;
-    if (currentBar.time === currentBarTime) {
+    if (bar.time === currentBarTime) {
       updatedBar = {
-        ...currentBar,
-        high: Math.max(currentBar.high, priceNum),
-        low: Math.min(currentBar.low, priceNum),
+        ...bar,
+        high: Math.max(bar.high, priceNum),
+        low: Math.min(bar.low, priceNum),
         close: priceNum,
-        volume: currentBar.volume + 0.05,
+        volume: bar.volume + 0.05,
       };
     } else {
       updatedBar = {
@@ -230,7 +252,7 @@ export default function CandlestickChart() {
     }
 
     candleSeriesRef.current.update({
-      time: updatedBar.time as any,
+      time: updatedBar.time as Parameters<typeof candleSeriesRef.current.update>[0]['time'],
       open: updatedBar.open,
       high: updatedBar.high,
       low: updatedBar.low,
@@ -239,20 +261,24 @@ export default function CandlestickChart() {
 
     if (volumeSeriesRef.current) {
       volumeSeriesRef.current.update({
-        time: updatedBar.time as any,
+        time: updatedBar.time as Parameters<typeof volumeSeriesRef.current.update>[0]['time'],
         value: updatedBar.volume,
         color: updatedBar.close >= updatedBar.open ? 'rgba(8, 153, 129, 0.4)' : 'rgba(242, 54, 69, 0.4)',
       });
     }
 
     setCurrentBar(updatedBar);
-  }, [lastPrice, resolution, currentBar]);
+  }, [lastPrice, resolution]);
 
   const activeDisplay = hoveredData || currentBar;
-  const isUp = activeDisplay ? activeDisplay.close >= activeDisplay.open : true;
-  const changePct = activeDisplay && activeDisplay.open > 0
-    ? (((activeDisplay.close - activeDisplay.open) / activeDisplay.open) * 100).toFixed(2)
-    : '0.00';
+
+  const { isUp, changePct } = useMemo(() => {
+    const up = activeDisplay ? activeDisplay.close >= activeDisplay.open : true;
+    const pct = activeDisplay && activeDisplay.open > 0
+      ? (((activeDisplay.close - activeDisplay.open) / activeDisplay.open) * 100).toFixed(2)
+      : '0.00';
+    return { isUp: up, changePct: pct };
+  }, [activeDisplay]);
 
   return (
     <div className="flex flex-col h-full bg-[#131722] border-b border-[#1E222D]">

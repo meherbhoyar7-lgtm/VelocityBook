@@ -54,14 +54,14 @@ async function getInitialData(symbol: string): Promise<{
 
     if (tradesRes.status === 'fulfilled' && tradesRes.value.ok) {
       const data = await tradesRes.value.json();
-      trades = (data.trades || []).map((t: any) => ({
-        tradeId: t.id || t.tradeId,
+      trades = (data.trades || []).map((t: { id?: string; tradeId?: string; symbol: string; price: string; quantity: string; buyer_id?: string; buyerId?: string; seller_id?: string; sellerId?: string; executed_at?: string; timestamp?: number }) => ({
+        tradeId: t.id || t.tradeId || '',
         symbol: t.symbol,
         price: t.price,
         quantity: t.quantity,
-        buyerId: t.buyer_id || t.buyerId,
-        sellerId: t.seller_id || t.sellerId,
-        timestamp: new Date(t.executed_at || t.timestamp).getTime(),
+        buyerId: t.buyer_id || t.buyerId || '',
+        sellerId: t.seller_id || t.sellerId || '',
+        timestamp: new Date(t.executed_at || t.timestamp || 0).getTime(),
       }));
     }
 

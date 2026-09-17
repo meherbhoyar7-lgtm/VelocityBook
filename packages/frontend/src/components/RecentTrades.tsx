@@ -5,6 +5,7 @@ import { useTradeStore } from '@/stores/useTradeStore';
 import { useUserStore } from '@/stores/useUserStore';
 import { api } from '@/lib/api';
 import { formatPrice, formatQuantity } from '@/lib/utils';
+import { TradeTickData } from '@/types';
 
 export default function RecentTrades() {
   const recentTrades = useTradeStore((s) => s.recentTrades);
@@ -15,29 +16,31 @@ export default function RecentTrades() {
   // Fetch recent trades from backend on mount or symbol change
   useEffect(() => {
     let isMounted = true;
-    setLoading(true);
 
-    api.getRecentTrades(selectedSymbol)
-      .then((res) => {
+    const fetchTrades = async () => {
+      try {
+        const res = await api.getRecentTrades(selectedSymbol);
         if (isMounted && res.trades) {
-          const mapped = res.trades.map((t: any) => ({
-            tradeId: t.id,
+          const mapped: TradeTickData[] = res.trades.map((t) => ({
+            tradeId: t.tradeId || t.id || '',
             symbol: t.symbol,
             price: t.price,
             quantity: t.quantity,
-            buyerId: t.buyer_id,
-            sellerId: t.seller_id,
-            timestamp: new Date(t.executed_at).getTime(),
+            buyerId: t.buyerId || t.buyer_id || '',
+            sellerId: t.sellerId || t.seller_id || '',
+            timestamp: t.timestamp || (t.executed_at ? new Date(t.executed_at).getTime() : Date.now()),
           }));
           setTrades(mapped);
+
         }
-      })
-      .catch((err) => {
+      } catch (err) {
         console.error('[RecentTrades] Failed to fetch trades:', err);
-      })
-      .finally(() => {
+      } finally {
         if (isMounted) setLoading(false);
-      });
+      }
+    };
+
+    fetchTrades();
 
     return () => {
       isMounted = false;

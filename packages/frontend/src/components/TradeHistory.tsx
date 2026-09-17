@@ -11,25 +11,39 @@ export default function TradeHistory() {
   const userId = useUserStore((s) => s.userId);
   const [trades, setTrades] = useState<TradeHistoryEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [fetchTrigger, setFetchTrigger] = useState(0);
 
-  const fetchUserTrades = useCallback(async () => {
-    if (!userId) return;
-    setLoading(true);
-    try {
-      const res = await api.getUserTrades();
-      setTrades(res.trades || []);
-    } catch (err) {
-      console.error('[TradeHistory] Error fetching:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [userId]);
-
+  // Fetch on mount, when userId changes, or when manually triggered
   useEffect(() => {
-    fetchUserTrades();
-    const interval = setInterval(fetchUserTrades, 4000);
+    if (!userId) return;
+    let cancelled = false;
+
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await api.getUserTrades();
+        if (!cancelled) setTrades(res.trades || []);
+      } catch (err) {
+        console.error('[TradeHistory] Error fetching:', err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [userId, fetchTrigger]);
+
+  // Poll every 4 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setFetchTrigger((c) => c + 1);
+    }, 4000);
     return () => clearInterval(interval);
-  }, [fetchUserTrades]);
+  }, []);
+
+  const handleRefresh = useCallback(() => {
+    setFetchTrigger((c) => c + 1);
+  }, []);
 
   return (
     <div className="flex flex-col h-full bg-[#131722] text-xs font-mono">
@@ -38,7 +52,7 @@ export default function TradeHistory() {
           User Trade Executions ({trades.length})
         </span>
         <button
-          onClick={fetchUserTrades}
+          onClick={handleRefresh}
           disabled={loading}
           className="text-[#787B86] hover:text-[#D1D4DC] p-1 rounded"
           title="Refresh"

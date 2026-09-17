@@ -1,16 +1,21 @@
 'use client';
 
-import { useEffect } from 'react';
-import { Activity, Wifi, WifiOff, ChevronDown, DollarSign } from 'lucide-react';
+import { useEffect, useCallback } from 'react';
+import { Wifi, WifiOff, ChevronDown, DollarSign, History } from 'lucide-react';
 import { useUserStore } from '@/stores/useUserStore';
 import { useTradeStore } from '@/stores/useTradeStore';
 import { useOrderBookStore } from '@/stores/useOrderBookStore';
 import { api } from '@/lib/api';
 import { formatPrice } from '@/lib/utils';
 
-export default function Header() {
+interface HeaderProps {
+  onToggleReplay?: () => void;
+  isReplayOpen?: boolean;
+}
+
+export default function Header({ onToggleReplay, isReplayOpen }: HeaderProps = {}) {
+
   const userId = useUserStore((s) => s.userId);
-  const displayName = useUserStore((s) => s.displayName);
   const demoUsers = useUserStore((s) => s.demoUsers);
   const accounts = useUserStore((s) => s.accounts);
   const selectedSymbol = useUserStore((s) => s.selectedSymbol);
@@ -23,6 +28,17 @@ export default function Header() {
   const midPrice = useOrderBookStore((s) => s.midPrice);
   const spread = useOrderBookStore((s) => s.spread);
 
+  const handleSwitchUser = useCallback(async (id: string) => {
+    try {
+      const res = await api.switchUser(id);
+      setUser(res.user.id, res.user.displayName, res.token);
+      const portfolio = await api.getPortfolio();
+      setAccounts(portfolio.accounts);
+    } catch (err) {
+      console.error('Switch user failed:', err);
+    }
+  }, [setUser, setAccounts]);
+
   // Load demo users on mount
   useEffect(() => {
     api.getDemoUsers().then((res) => setDemoUsers(res.users)).catch(() => {});
@@ -33,18 +49,7 @@ export default function Header() {
     if (!userId && demoUsers.length > 0) {
       handleSwitchUser(demoUsers[0].id);
     }
-  }, [demoUsers, userId]);
-
-  const handleSwitchUser = async (id: string) => {
-    try {
-      const res = await api.switchUser(id);
-      setUser(res.user.id, res.user.displayName, res.token);
-      const portfolio = await api.getPortfolio();
-      setAccounts(portfolio.accounts);
-    } catch (err) {
-      console.error('Switch user failed:', err);
-    }
-  };
+  }, [demoUsers, userId, handleSwitchUser]);
 
   const handleDeposit = async () => {
     try {
@@ -117,6 +122,22 @@ export default function Header() {
         )}
       </div>
 
+      {/* Replay Ribbon Toggle */}
+      {onToggleReplay && (
+        <button
+          onClick={onToggleReplay}
+          className={`flex items-center gap-1 px-2.5 py-1.5 rounded transition-colors text-xs font-medium border ${
+            isReplayOpen
+              ? 'bg-[#2962FF]/15 border-[#2962FF]/40 text-[#2962FF]'
+              : 'bg-[#1E222D] border-[#2A2E39] text-[#787B86] hover:text-[#D1D4DC]'
+          }`}
+          title="Toggle Historical Trade Replay Toolbar"
+        >
+          <History size={13} />
+          <span>Replay</span>
+        </button>
+      )}
+
       {/* Deposit Button */}
       <button
         onClick={handleDeposit}
@@ -125,6 +146,7 @@ export default function Header() {
         <DollarSign size={12} />
         +₹1 Lakh
       </button>
+
 
       {/* Balance */}
       {inrAccount && (

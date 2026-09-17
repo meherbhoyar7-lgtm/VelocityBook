@@ -1,0 +1,12 @@
+global:
+  scrape_interval: 2s
+  evaluation_interval: 2s
+
+scrape_configs:
+  - job_name: 'velocitybook-backend'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['backend:3001', 'host.docker.internal:3001']
+        labels:
+          app: 'velocitybook'
+          env: 'production'

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useUserStore } from '@/stores/useUserStore';
 import { api } from '@/lib/api';
 import { formatPrice } from '@/lib/utils';
@@ -59,7 +59,7 @@ export default function OrderEntry({ initialPrice }: OrderEntryProps) {
     setMessage(null);
 
     try {
-      const params: any = {
+      const params: { symbol: string; side: string; type: string; quantity: string; price?: string } = {
         symbol: selectedSymbol,
         side,
         type: orderType,
@@ -79,8 +79,8 @@ export default function OrderEntry({ initialPrice }: OrderEntryProps) {
       // Refresh balances
       const portfolio = await api.getPortfolio();
       setAccounts(portfolio.accounts);
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.message });
+    } catch (err: unknown) {
+      setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Order failed' });
     } finally {
       setLoading(false);
       setTimeout(() => setMessage(null), 3000);
@@ -88,11 +88,12 @@ export default function OrderEntry({ initialPrice }: OrderEntryProps) {
   };
 
   // Update price when clicked from order book
-  useEffect(() => {
-    if (initialPrice) {
-      setPrice(initialPrice);
-    }
-  }, [initialPrice]);
+  // Track previous value to detect changes without refs during render
+  const [prevInitialPrice, setPrevInitialPrice] = useState(initialPrice);
+  if (initialPrice && initialPrice !== prevInitialPrice) {
+    setPrevInitialPrice(initialPrice);
+    setPrice(initialPrice);
+  }
 
   return (
     <div className="bg-[#131722] border-l border-[#1E222D] flex flex-col p-4 gap-3 text-sm">

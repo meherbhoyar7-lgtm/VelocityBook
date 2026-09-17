@@ -25,6 +25,21 @@ export interface TradeTickData {
   timestamp: number;
 }
 
+export interface ApiTradeRow {
+  id?: string;
+  tradeId?: string;
+  symbol: string;
+  price: string;
+  quantity: string;
+  buyer_id?: string;
+  buyerId?: string;
+  seller_id?: string;
+  sellerId?: string;
+  executed_at?: string;
+  timestamp?: number;
+}
+
+
 export interface UserAccount {
   currency: string;
   available_balance: string;

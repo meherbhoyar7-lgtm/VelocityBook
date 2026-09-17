@@ -6,6 +6,7 @@ import { withTransaction } from '../db/pool';
 import { query } from '../db/pool';
 import { RiskService } from '../services/RiskService';
 import { SettlementService } from '../services/SettlementService';
+import { MetricService } from '../services/MetricService';
 
 // These will be injected by the server
 let matchingEngine: any;
@@ -133,7 +134,14 @@ router.post('/', async (req: Request, res: Response) => {
       ...(displayQty && { displayQty: displayQty.toString() }),
     });
 
+    const endTimer = MetricService.orderLatency?.startTimer({ symbol, type });
     const trades = await matchingEngine.submitOrder(order);
+    if (endTimer) endTimer();
+
+    MetricService.ordersTotal?.inc({ symbol, side, type, status: order.status });
+    if (trades.length > 0) {
+      MetricService.tradesTotal?.inc({ symbol }, trades.length);
+    }
 
     // Settle each trade
     for (const trade of trades) {
@@ -182,6 +190,12 @@ router.post('/', async (req: Request, res: Response) => {
         midPrice: snapshot.midPrice?.toString() || null,
         timestamp: snapshot.timestamp,
       });
+
+      if (snapshot.spread) {
+        MetricService.orderBookSpread?.set({ symbol }, snapshot.spread.toNumber());
+      }
+      MetricService.orderBookDepth?.set({ symbol, side: 'BUY' }, snapshot.bids.length);
+      MetricService.orderBookDepth?.set({ symbol, side: 'SELL' }, snapshot.asks.length);
     }
 
     // If the order was cancelled by the engine (unfilled market), update DB

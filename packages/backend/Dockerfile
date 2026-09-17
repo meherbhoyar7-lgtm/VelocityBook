@@ -21,3 +21,5 @@ WORKDIR /app/packages/backend
 
 EXPOSE 3001
 CMD ["node", "dist/server.js"]
+
+

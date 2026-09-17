@@ -1,4 +1,39 @@
+import { UserAccount, DemoUser, OpenOrder, TradeHistoryEntry, LedgerEntry, CandleData, ApiTradeRow } from '@/types';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+interface SwitchUserResponse {
+  user: { id: string; displayName: string };
+  token: string;
+}
+
+interface PlaceOrderResponse {
+  orderId: string;
+  status: string;
+  trades?: { tradeId: string; price: string; quantity: string }[];
+}
+
+interface CancelOrderResponse {
+  success: boolean;
+}
+
+interface OrderBookResponse {
+  symbol: string;
+  bids: { price: string; size: string; total: string }[];
+  asks: { price: string; size: string; total: string }[];
+  spread: string | null;
+  midPrice: string | null;
+}
+
+interface HealthResponse {
+  status: string;
+  uptime: number;
+}
+
+interface FaucetResponse {
+  success: boolean;
+  balance: string;
+}
 
 class ApiClient {
   private baseUrl: string;
@@ -40,11 +75,11 @@ class ApiClient {
 
   // Auth
   async getDemoUsers() {
-    return this.request<{ users: any[] }>('/api/auth/demo-users');
+    return this.request<{ users: DemoUser[] }>('/api/auth/demo-users');
   }
 
   async switchUser(userId: string) {
-    const data = await this.request<{ user: any; token: string }>(`/api/auth/switch/${userId}`, {
+    const data = await this.request<SwitchUserResponse>(`/api/auth/switch/${userId}`, {
       method: 'POST',
     });
     this.setUser(data.user.id, data.token);
@@ -53,50 +88,50 @@ class ApiClient {
 
   // Portfolio
   async getPortfolio() {
-    return this.request<{ accounts: any[] }>('/api/portfolio');
+    return this.request<{ accounts: UserAccount[] }>('/api/portfolio');
   }
 
   // Orders
   async placeOrder(params: { symbol: string; side: string; type: string; price?: string; quantity: string }) {
-    return this.request<any>('/api/orders', {
+    return this.request<PlaceOrderResponse>('/api/orders', {
       method: 'POST',
       body: JSON.stringify(params),
     });
   }
 
   async cancelOrder(orderId: string) {
-    return this.request<any>(`/api/orders/${orderId}`, { method: 'DELETE' });
+    return this.request<CancelOrderResponse>(`/api/orders/${orderId}`, { method: 'DELETE' });
   }
 
   async getOpenOrders() {
-    return this.request<{ orders: any[] }>('/api/orders/open');
+    return this.request<{ orders: OpenOrder[] }>('/api/orders/open');
   }
 
   async getOrderHistory() {
-    return this.request<{ orders: any[] }>('/api/orders/history');
+    return this.request<{ orders: OpenOrder[] }>('/api/orders/history');
   }
 
   // Trades
   async getRecentTrades(symbol: string = 'BTC-USD') {
-    return this.request<{ trades: any[] }>(`/api/trades/recent?symbol=${symbol}`);
+    return this.request<{ trades: ApiTradeRow[] }>(`/api/trades/recent?symbol=${symbol}`);
   }
 
   async getCandles(symbol: string = 'BTC-USD', resolution: string = '1m') {
-    return this.request<{ candles: any[] }>(`/api/trades/candles?symbol=${symbol}&resolution=${resolution}`);
+    return this.request<{ candles: CandleData[] }>(`/api/trades/candles?symbol=${symbol}&resolution=${resolution}`);
   }
 
   async getUserTrades() {
-    return this.request<{ trades: any[] }>('/api/trades/user');
+    return this.request<{ trades: TradeHistoryEntry[] }>('/api/trades/user');
   }
 
   // Order Book
   async getOrderBook(symbol: string = 'BTC-USD') {
-    return this.request<any>(`/api/orderbook?symbol=${symbol}`);
+    return this.request<OrderBookResponse>(`/api/orderbook?symbol=${symbol}`);
   }
 
   // Faucet
   async depositFaucet(currency: string, amount: string) {
-    return this.request<any>('/api/faucet', {
+    return this.request<FaucetResponse>('/api/faucet', {
       method: 'POST',
       body: JSON.stringify({ currency, amount }),
     });
@@ -104,12 +139,12 @@ class ApiClient {
 
   // Ledger
   async getLedger() {
-    return this.request<{ entries: any[] }>('/api/faucet/ledger');
+    return this.request<{ entries: LedgerEntry[] }>('/api/faucet/ledger');
   }
 
   // Health
   async getHealth() {
-    return this.request<any>('/api/health');
+    return this.request<HealthResponse>('/api/health');
   }
 }
 

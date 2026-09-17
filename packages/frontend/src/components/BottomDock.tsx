@@ -5,18 +5,20 @@ import ActiveOrders from './ActiveOrders';
 import TradeHistory from './TradeHistory';
 import Portfolio from './Portfolio';
 import LedgerAuditTrail from './LedgerAuditTrail';
-import { ListFilter, History, Wallet, FileSpreadsheet } from 'lucide-react';
+import ReportsExport from './ReportsExport';
+import { ListFilter, History, Wallet, FileSpreadsheet, Download, LucideIcon } from 'lucide-react';
 
-type TabKey = 'orders' | 'trades' | 'portfolio' | 'ledger';
+type TabKey = 'orders' | 'trades' | 'portfolio' | 'ledger' | 'reports';
 
 export default function BottomDock() {
   const [activeTab, setActiveTab] = useState<TabKey>('orders');
 
-  const tabs: { key: TabKey; label: string; icon: any }[] = [
+  const tabs: { key: TabKey; label: string; icon: LucideIcon }[] = [
     { key: 'orders', label: 'Open Orders', icon: ListFilter },
     { key: 'trades', label: 'Trade History', icon: History },
     { key: 'portfolio', label: 'Balances & Portfolio', icon: Wallet },
     { key: 'ledger', label: 'Ledger Audit Trail', icon: FileSpreadsheet },
+    { key: 'reports', label: 'Data & Reports', icon: Download },
   ];
 
   return (
@@ -49,6 +51,7 @@ export default function BottomDock() {
         {activeTab === 'trades' && <TradeHistory />}
         {activeTab === 'portfolio' && <Portfolio />}
         {activeTab === 'ledger' && <LedgerAuditTrail />}
+        {activeTab === 'reports' && <ReportsExport />}
       </div>
     </div>
   );
